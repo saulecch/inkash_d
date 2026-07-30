@@ -72,6 +72,20 @@ class MyApp extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: .spaceBetween,
+              children: [
+                const Text(
+                  'Últimos movimientos',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                ),
+                TextButton(
+                  onPressed: () {},
+                  child: const Text('Ver todo', style: TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
           ],
         ),
       ),
