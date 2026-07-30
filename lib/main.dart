@@ -13,10 +13,19 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: const Scaffold(
-        body: Row(
-          mainAxisAlignment: .spaceBetween,
-          children: [Text('Hola, Kevin'), Text('Julio 2026')],
+      home: Scaffold(
+        body: ListView(
+          children: [
+            Row(
+              mainAxisAlignment: .spaceBetween,
+              children: [Text('Hola, Kevin'), Text('Julio 2026')],
+            ),
+            Column(
+              children: [
+                Text('TE QUEDAN DISPONIBLES', style: TextStyle(fontSize: 10)),
+              ],
+            ),
+          ],
         ),
       ),
     );
