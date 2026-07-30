@@ -18,17 +18,58 @@ class MyApp extends StatelessWidget {
           padding: EdgeInsets.all(16),
           children: [
             Row(
-              mainAxisAlignment: .spaceBetween,
-              children: [Text('Hola, Kevin'), Text('Julio 2026')],
+              children: const [
+                Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
+                Spacer(),
+                Text('Julio 2026', style: TextStyle(fontSize: 12)),
+              ],
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 22),
             Column(
-              crossAxisAlignment: .start,
-              children: [
-                Text('TE QUEDAN DISPONIBLES', style: TextStyle(fontSize: 10)),
-                Text('Q.2976.50', style: TextStyle(fontSize: 50)),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text('TE QUEDAN DISPONIBLES', style: TextStyle(fontSize: 11)),
+                SizedBox(height: 6),
+                Text('Q2,796.50', style: TextStyle(fontSize: 52)),
+                SizedBox(height: 16),
                 LinearProgressIndicator(value: 0.57),
-                Text('Has usado Q.3,7...', style: TextStyle(fontSize: 12)),
+                SizedBox(height: 7),
+                Text(
+                  'Has usado Q3,703.50 de Q6,500.00',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    color: Colors.grey.shade300,
+                    child: Column(
+                      crossAxisAlignment: .start,
+                      children: [
+                        Text('Cuentas', style: TextStyle(fontSize: 14)),
+                        Text('Q.7,810', style: TextStyle(fontSize: 20)),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    color: Colors.grey.shade300,
+                    child: Column(
+                      crossAxisAlignment: .start,
+                      children: [
+                        Text('Metas de ahorro', style: TextStyle(fontSize: 14)),
+                        Text('3 activas', style: TextStyle(fontSize: 20)),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
