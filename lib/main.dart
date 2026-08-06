@@ -123,9 +123,26 @@ class MyApp extends StatelessWidget {
             ),
           ],
         ),
-        // bottomNavigationBar: BottomNavigationBar(
-
-        // ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: 0,
+          selectedItemColor: Colors.blue,
+          items: [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart),
+              label: 'Presupuesto',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Agregar'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history),
+              label: 'Historial',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings),
+              label: 'Ajustes',
+            ),
+          ],
+        ),
       ),
     );
   }
