@@ -53,12 +53,17 @@ class MyApp extends StatelessWidget {
                   'Q2,796.50',
                   style: TextStyle(fontSize: 52, fontWeight: FontWeight.w600),
                 ),
-                SizedBox(height: 16),
-                LinearProgressIndicator(value: 0.57),
-                SizedBox(height: 7),
+                SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: 0.57,
+                  color: kLima,
+                  minHeight: 8,
+                  borderRadius: BorderRadius.all(Radius.circular(4)),
+                ),
+                SizedBox(height: 8),
                 Text(
                   'Has usado Q3,703.50 de Q6,500.00',
-                  style: TextStyle(fontSize: 12),
+                  style: TextStyle(fontSize: 12, color: kMuted),
                 ),
               ],
             ),
@@ -124,15 +129,19 @@ class MyApp extends StatelessWidget {
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: 0,
           selectedItemColor: kLima,
-          items: [
+          type: BottomNavigationBarType.fixed,
+          items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
             BottomNavigationBarItem(
               icon: Icon(Icons.bar_chart),
               label: 'Presupuesto',
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Agregar'),
             BottomNavigationBarItem(
-              icon: Icon(Icons.history),
+              icon: Icon(Icons.add_circle, size: 34),
+              label: 'Agregar',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.list_alt),
               label: 'Historial',
             ),
             BottomNavigationBarItem(
@@ -154,12 +163,23 @@ Widget detailListTile(
   String date,
 ) {
   return ListTile(
-    leading: Icon(icon),
-    title: Text(title),
-    subtitle: Text(subtitle),
+    leading: Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: kIconoFondo,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Icon(icon, color: kLima),
+    ),
+    title: Text(title, style: TextStyle(color: kTexto)),
+    subtitle: Text(subtitle, style: TextStyle(color: kMuted)),
     trailing: Column(
       crossAxisAlignment: CrossAxisAlignment.end,
-      children: [Text(amount), Text(date)],
+      children: [
+        Text(amount, style: TextStyle(fontSize: 13, color: kTexto)),
+        Text(date, style: TextStyle(fontSize: 10, color: kMuted)),
+      ],
     ),
   );
 }
@@ -168,7 +188,11 @@ Widget heroCard(String title, String content) {
   return Expanded(
     child: Container(
       padding: EdgeInsets.all(16),
-      color: kSuperficie,
+      decoration: BoxDecoration(
+        color: kSuperficie,
+        border: Border.all(color: kBorde),
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
       child: Column(
         crossAxisAlignment: .start,
         children: [
