@@ -85,7 +85,10 @@ class MyApp extends StatelessWidget {
                 ),
                 TextButton(
                   onPressed: () {},
-                  child: const Text('Ver todo', style: TextStyle(fontSize: 13)),
+                  child: const Text(
+                    'Ver todo',
+                    style: TextStyle(fontSize: 13, color: kLima),
+                  ),
                 ),
               ],
             ),
@@ -109,6 +112,7 @@ class MyApp extends StatelessWidget {
               'Ingreso · Banco',
               '+ Q4,200.00',
               'Ayer',
+              isIncome: true,
             ),
             detailListTile(
               Icons.local_cafe,
@@ -160,8 +164,9 @@ Widget detailListTile(
   String title,
   String subtitle,
   String amount,
-  String date,
-) {
+  String date, {
+  bool isIncome = false,
+}) {
   return ListTile(
     leading: Container(
       width: 40,
@@ -177,7 +182,10 @@ Widget detailListTile(
     trailing: Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(amount, style: TextStyle(fontSize: 13, color: kTexto)),
+        Text(
+          amount,
+          style: TextStyle(fontSize: 13, color: isIncome ? kLima : kTexto),
+        ),
         Text(date, style: TextStyle(fontSize: 10, color: kMuted)),
       ],
     ),
