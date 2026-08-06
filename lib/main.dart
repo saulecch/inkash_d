@@ -87,21 +87,45 @@ class MyApp extends StatelessWidget {
               ],
             ),
             detailListTile(
-              Icons.directions_bus_rounded,
+              Icons.directions_bus,
               'Uber al trabajo',
-              'Transporte Tarjeta',
-              '- Q38.00',
-              'Ayer',
+              'Transporte · Tarjeta',
+              '− Q38.00',
+              'Hoy',
             ),
             detailListTile(
               Icons.shopping_cart,
-              'Súper la torre',
-              'Súper y cómida  Tarjeta',
-              '- Q285.00',
+              'Súper La Torre',
+              'Súper y comida · Tarjeta',
+              '− Q285.50',
               'Ayer',
+            ),
+            detailListTile(
+              Icons.arrow_upward,
+              'Salario quincena',
+              'Ingreso · Banco',
+              '+ Q4,200.00',
+              'Ayer',
+            ),
+            detailListTile(
+              Icons.local_cafe,
+              'Café con Ana',
+              'Entretenimiento · Efectivo',
+              '− Q65.00',
+              'Ayer',
+            ),
+            detailListTile(
+              Icons.bolt,
+              'Recibo de luz (EEGSA)',
+              'Servicios · Banco',
+              '− Q420.00',
+              'Lun 20',
             ),
           ],
         ),
+        // bottomNavigationBar: BottomNavigationBar(
+
+        // ),
       ),
     );
   }
