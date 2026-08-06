@@ -86,9 +86,41 @@ class MyApp extends StatelessWidget {
                 ),
               ],
             ),
+            detailListTile(
+              Icons.directions_bus_rounded,
+              'Uber al trabajo',
+              'Transporte Tarjeta',
+              '- Q38.00',
+              'Ayer',
+            ),
+            detailListTile(
+              Icons.shopping_cart,
+              'Súper la torre',
+              'Súper y cómida  Tarjeta',
+              '- Q285.00',
+              'Ayer',
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+Widget detailListTile(
+  IconData icon,
+  String title,
+  String subtitle,
+  String amount,
+  String date,
+) {
+  return ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    subtitle: Text(subtitle),
+    trailing: Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [Text(amount), Text(date)],
+    ),
+  );
 }
