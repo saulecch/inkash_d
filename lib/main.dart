@@ -4,6 +4,16 @@ void main() {
   runApp(const MyApp());
 }
 
+const kFondo = Color(0xFF0E120C);
+const kSuperficie = Color(0xFF181E14);
+const kBorde = Color(0xFF2A3222);
+const kTexto = Color(0xFFF1F4EA);
+const kMuted = Color(0xFF8F9C80);
+const kLima = Color(0xFFC8F54E); // --color-accent
+const kIconoFondo = Color(0xFF37491C); // --color-accent-300
+
+const kFig = TextStyle(fontFamily: 'monospace'); // cifras (Azeret Mono)
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -11,8 +21,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
-      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
+      title: 'Inkash',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: kFondo,
+        colorScheme: .fromSeed(seedColor: kLima, brightness: Brightness.dark),
+      ),
       home: Scaffold(
         body: ListView(
           padding: EdgeInsets.all(16),
@@ -21,16 +35,24 @@ class MyApp extends StatelessWidget {
               children: const [
                 Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
                 Spacer(),
-                Text('Julio 2026', style: TextStyle(fontSize: 12)),
+                Text(
+                  'Julio 2026',
+                  style: TextStyle(fontSize: 12, color: kMuted),
+                ),
               ],
             ),
             const SizedBox(height: 22),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                Text('TE QUEDAN DISPONIBLES', style: TextStyle(fontSize: 11)),
-                SizedBox(height: 6),
-                Text('Q2,796.50', style: TextStyle(fontSize: 52)),
+                Text(
+                  'TE QUEDAN DISPONIBLES',
+                  style: TextStyle(fontSize: 11, color: kLima),
+                ),
+                Text(
+                  'Q2,796.50',
+                  style: TextStyle(fontSize: 52, fontWeight: FontWeight.w600),
+                ),
                 SizedBox(height: 16),
                 LinearProgressIndicator(value: 0.57),
                 SizedBox(height: 7),
@@ -43,33 +65,9 @@ class MyApp extends StatelessWidget {
             const SizedBox(height: 22),
             Row(
               children: [
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.all(16),
-                    color: Colors.grey.shade300,
-                    child: Column(
-                      crossAxisAlignment: .start,
-                      children: [
-                        Text('Cuentas', style: TextStyle(fontSize: 14)),
-                        Text('Q.7,810', style: TextStyle(fontSize: 20)),
-                      ],
-                    ),
-                  ),
-                ),
+                heroCard('Cuentas', 'Q7,810.00'),
                 SizedBox(width: 16),
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.all(16),
-                    color: Colors.grey.shade300,
-                    child: Column(
-                      crossAxisAlignment: .start,
-                      children: [
-                        Text('Metas de ahorro', style: TextStyle(fontSize: 14)),
-                        Text('3 activas', style: TextStyle(fontSize: 20)),
-                      ],
-                    ),
-                  ),
-                ),
+                heroCard('Metas de ahorro', '3 activas'),
               ],
             ),
             const SizedBox(height: 16),
@@ -125,7 +123,7 @@ class MyApp extends StatelessWidget {
         ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: 0,
-          selectedItemColor: Colors.blue,
+          selectedItemColor: kLima,
           items: [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
             BottomNavigationBarItem(
@@ -162,6 +160,22 @@ Widget detailListTile(
     trailing: Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [Text(amount), Text(date)],
+    ),
+  );
+}
+
+Widget heroCard(String title, String content) {
+  return Expanded(
+    child: Container(
+      padding: EdgeInsets.all(16),
+      color: kSuperficie,
+      child: Column(
+        crossAxisAlignment: .start,
+        children: [
+          Text(title, style: TextStyle(fontSize: 14)),
+          Text(content, style: TextStyle(fontSize: 20)),
+        ],
+      ),
     ),
   );
 }
