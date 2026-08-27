@@ -1,29 +1,24 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkash_d/app.dart';
+import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
+import 'package:riverpod/riverpod.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const InkashApp());
+  test('suma los gastos y calcula el saldo disponible', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final controller = container.read(movimientosControllerProvider);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(controller.totalGastadoCentavos, 370350);
+    expect(controller.saldoDisponibleCentavos, 279650);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('muestra el saldo calculado en la pantalla', (tester) async {
+    final controller = MovimientosController();
+    await tester.pumpWidget(InkashApp(controller: controller));
+
+    expect(find.text('Q2,796.50'), findsOneWidget);
+    expect(find.text('Has usado Q3,703.50 de Q6,500.00'), findsOneWidget);
   });
 }
