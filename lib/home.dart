@@ -1,16 +1,48 @@
 import 'package:flutter/material.dart';
-import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
-import 'package:inkash_d/theme.dart';
+import 'package:riverpod/riverpod.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({required this.controller, super.key});
+import 'features/home/presentation/controllers/home_controller.dart';
+import 'models/home_summary.dart';
+import 'theme.dart';
+
+class HomePage extends StatefulWidget {
+  const HomePage({
+    required this.controller,
+    required this.container,
+    super.key,
+  });
 
   final MovimientosController controller;
+  final ProviderContainer container;
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onControllerUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.loadHomeData();
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerUpdate);
+    super.dispose();
+  }
+
+  void _onControllerUpdate() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
-    final totalGastado = controller.totalGastadoCentavos;
-    final saldoDisponible = controller.saldoDisponibleCentavos;
+    final summary = widget.controller.summary;
+    final loading = widget.controller.loading;
 
     return Scaffold(
       body: SafeArea(
@@ -28,46 +60,22 @@ class HomePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 22),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'TE QUEDAN DISPONIBLES',
-                  style: TextStyle(fontSize: 11, color: kLima),
+            if (loading && summary == null)
+              const Center(child: CircularProgressIndicator(color: kLima))
+            else if (summary != null)
+              _buildBudgetSection(summary)
+            else
+              const Center(
+                child: Text(
+                  'Sin datos disponibles',
+                  style: TextStyle(color: kMuted),
                 ),
-                Text(
-                  _formatQuetzales(saldoDisponible),
-                  style: const TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                LinearProgressIndicator(
-                  value: totalGastado / controller.limiteMensualCentavos,
-                  color: kLima,
-                  minHeight: 8,
-                  borderRadius: const BorderRadius.all(Radius.circular(4)),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Has usado ${_formatQuetzales(totalGastado)} '
-                  'de ${_formatQuetzales(controller.limiteMensualCentavos)}',
-                  style: const TextStyle(fontSize: 12, color: kMuted),
-                ),
-              ],
-            ),
+              ),
             const SizedBox(height: 22),
-            Row(
-              children: [
-                heroCard('Cuentas', 'Q7,810.00'),
-                SizedBox(width: 16),
-                heroCard('Metas de ahorro', '3 activas'),
-              ],
-            ),
+            _buildHeroCards(summary),
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: .spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'Últimos movimientos',
@@ -82,42 +90,16 @@ class HomePage extends StatelessWidget {
                 ),
               ],
             ),
-            detailListTile(
-              Icons.directions_bus,
-              'Uber al trabajo',
-              'Transporte · Tarjeta',
-              '− Q38.00',
-              'Hoy',
-            ),
-            detailListTile(
-              Icons.shopping_cart,
-              'Súper La Torre',
-              'Súper y comida · Tarjeta',
-              '− Q285.50',
-              'Ayer',
-            ),
-            detailListTile(
-              Icons.arrow_upward,
-              'Salario quincena',
-              'Ingreso · Banco',
-              '+ Q4,200.00',
-              'Ayer',
-              isIncome: true,
-            ),
-            detailListTile(
-              Icons.local_cafe,
-              'Café con Ana',
-              'Entretenimiento · Efectivo',
-              '− Q65.00',
-              'Ayer',
-            ),
-            detailListTile(
-              Icons.bolt,
-              'Recibo de luz (EEGSA)',
-              'Servicios · Banco',
-              '− Q420.00',
-              'Lun 20',
-            ),
+            if (summary != null)
+              for (final mov in summary.recentMovements)
+                detailListTile(
+                  Icons.receipt,
+                  mov.description,
+                  _formatDate(mov.occurredOn),
+                  '${mov.amountMinor >= 0 ? '+' : '−'} ${mov.amountFormatted}',
+                  _formatDate(mov.occurredOn),
+                  isIncome: mov.amountMinor >= 0,
+                ),
           ],
         ),
       ),
@@ -139,21 +121,86 @@ class HomePage extends StatelessWidget {
             icon: Icon(Icons.list_alt),
             label: 'Historial',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Ajustes',
+          ),
         ],
       ),
     );
   }
 
-  String _formatQuetzales(int centavos) {
-    final entero = centavos ~/ 100;
-    final decimales = (centavos % 100).toString().padLeft(2, '0');
-    final miles = entero.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    );
+  Widget _buildBudgetSection(HomeSummary summary) {
+    final balanceFormatted = summary.formatQuetzales(summary.totalBalanceMinor);
+    final spentFormatted = summary.formatQuetzales(summary.monthlySpentMinor);
+    final budgetFormatted =
+        summary.formatQuetzales(summary.monthlyBudgetMinor);
 
-    return 'Q$miles.$decimales';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'TE QUEDAN DISPONIBLES',
+          style: TextStyle(fontSize: 11, color: kLima),
+        ),
+        Text(
+          balanceFormatted,
+          style: const TextStyle(
+            fontSize: 52,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (summary.monthlyBudgetMinor > 0)
+          LinearProgressIndicator(
+            value: summary.budgetProgress,
+            color: kLima,
+            minHeight: 8,
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
+          ),
+        const SizedBox(height: 8),
+        if (summary.monthlyBudgetMinor > 0)
+          Text(
+            'Has usado $spentFormatted de $budgetFormatted',
+            style: const TextStyle(fontSize: 12, color: kMuted),
+          )
+        else
+          const Text(
+            'Sin presupuesto definido',
+            style: TextStyle(fontSize: 12, color: kMuted),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHeroCards(HomeSummary? summary) {
+    final goalsText = summary != null
+        ? '${summary.activeGoals} activa${summary.activeGoals != 1 ? 's' : ''}'
+        : '0 activas';
+
+    return Row(
+      children: [
+        heroCard('Cuentas', summary?.formatQuetzales(summary.totalBalanceMinor) ?? 'Q0.00'),
+        const SizedBox(width: 16),
+        heroCard('Metas de ahorro', goalsText),
+      ],
+    );
+  }
+
+  String _formatDate(String isoDate) {
+    try {
+      final parts = isoDate.split('-');
+      if (parts.length != 3) return isoDate;
+      final day = int.parse(parts[2]);
+      final month = int.parse(parts[1]);
+      final months = [
+        '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+      ];
+      return '$day ${months[month]}';
+    } catch (_) {
+      return isoDate;
+    }
   }
 }
 
@@ -175,16 +222,19 @@ Widget detailListTile(
       ),
       child: Icon(icon, color: kLima),
     ),
-    title: Text(title, style: TextStyle(color: kTexto)),
-    subtitle: Text(subtitle, style: TextStyle(color: kMuted)),
+    title: Text(title, style: const TextStyle(color: kTexto)),
+    subtitle: Text(subtitle, style: const TextStyle(color: kMuted)),
     trailing: Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
           amount,
-          style: TextStyle(fontSize: 13, color: isIncome ? kLima : kTexto),
+          style: TextStyle(
+            fontSize: 13,
+            color: isIncome ? kLima : kTexto,
+          ),
         ),
-        Text(date, style: TextStyle(fontSize: 10, color: kMuted)),
+        Text(date, style: const TextStyle(fontSize: 10, color: kMuted)),
       ],
     ),
   );
@@ -193,17 +243,17 @@ Widget detailListTile(
 Widget heroCard(String title, String content) {
   return Expanded(
     child: Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: kSuperficie,
         border: Border.all(color: kBorde),
-        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
       ),
       child: Column(
-        crossAxisAlignment: .start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 14)),
-          Text(content, style: TextStyle(fontSize: 20)),
+          Text(title, style: const TextStyle(fontSize: 14)),
+          Text(content, style: const TextStyle(fontSize: 20)),
         ],
       ),
     ),

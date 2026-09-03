@@ -9,7 +9,6 @@ void main() {
   runApp(const InkashBootstrap());
 }
 
-// Este widget es el punto donde se conectan Riverpod y la aplicación.
 class InkashBootstrap extends StatefulWidget {
   const InkashBootstrap({super.key});
 
@@ -19,25 +18,26 @@ class InkashBootstrap extends StatefulWidget {
 
 class _InkashBootstrapState extends State<InkashBootstrap> {
   late final ProviderContainer container;
+  late final MovimientosController controller;
 
   @override
   void initState() {
     super.initState();
-
-    // El contenedor guarda y administra los providers de Riverpod.
     container = ProviderContainer();
+    controller = container.read(movimientosControllerProvider);
   }
 
   @override
   void dispose() {
-    // El contenedor se libera junto con el widget que lo creó.
     container.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // main.dart obtiene el controlador y lo entrega a la aplicación.
-    return InkashApp(controller: container.read(movimientosControllerProvider));
+    return InkashApp(
+      controller: controller,
+      container: container,
+    );
   }
 }
