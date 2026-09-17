@@ -2,9 +2,9 @@ class Movement {
   final int? id;
   final int accountId;
   final int categoryId;
-  final int amountMinor;
+  final int amount;
   final String description;
-  final String occurredOn;
+  final int occurredOn;
   final String? notes;
   final int createdAtMs;
 
@@ -12,7 +12,7 @@ class Movement {
     this.id,
     required this.accountId,
     required this.categoryId,
-    required this.amountMinor,
+    required this.amount,
     required this.description,
     required this.occurredOn,
     this.notes,
@@ -24,7 +24,7 @@ class Movement {
       if (id != null) 'id': id,
       'account_id': accountId,
       'category_id': categoryId,
-      'amount_minor': amountMinor,
+      'amount': amount,
       'description': description,
       'occurred_on': occurredOn,
       'notes': notes,
@@ -37,9 +37,9 @@ class Movement {
       id: map['id'] as int?,
       accountId: map['account_id'] as int,
       categoryId: map['category_id'] as int,
-      amountMinor: map['amount_minor'] as int,
+      amount: map['amount'] as int,
       description: map['description'] as String,
-      occurredOn: map['occurred_on'] as String,
+      occurredOn: map['occurred_on'] as int,
       notes: map['notes'] as String?,
       createdAtMs: map['created_at_ms'] as int,
     );
@@ -49,9 +49,9 @@ class Movement {
     int? id,
     int? accountId,
     int? categoryId,
-    int? amountMinor,
+    int? amount,
     String? description,
-    String? occurredOn,
+    int? occurredOn,
     String? notes,
     int? createdAtMs,
   }) {
@@ -59,7 +59,7 @@ class Movement {
       id: id ?? this.id,
       accountId: accountId ?? this.accountId,
       categoryId: categoryId ?? this.categoryId,
-      amountMinor: amountMinor ?? this.amountMinor,
+      amount: amount ?? this.amount,
       description: description ?? this.description,
       occurredOn: occurredOn ?? this.occurredOn,
       notes: notes ?? this.notes,
@@ -67,8 +67,8 @@ class Movement {
     );
   }
 
-  bool get isIngres => amountMinor > 0;
-  String get amountFormatted => _formatQuetzales(amountMinor.abs());
+  bool get isIngres => amount > 0;
+  String get amountFormatted => _formatQuetzales(amount.abs());
 
   String _formatQuetzales(int centavos) {
     final entero = centavos ~/ 100;

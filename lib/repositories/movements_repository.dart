@@ -6,7 +6,10 @@ class MovementsRepository {
 
   Future<List<Movement>> getAll() async {
     final db = await _db.database;
-    final maps = await db.query('movements', orderBy: 'occurred_on DESC, id DESC');
+    final maps = await db.query(
+      'movements',
+      orderBy: 'occurred_on DESC, id DESC',
+    );
     return maps.map(Movement.fromMap).toList();
   }
 
@@ -14,8 +17,8 @@ class MovementsRepository {
     final db = await _db.database;
     final maps = await db.query(
       'movements',
-      where: 'occurred_on LIKE ?',
-      whereArgs: ['$yearMonth%'],
+      where: 'substr(occurred_on, 1, 6) = ?',
+      whereArgs: [yearMonth.replaceAll('-', '')],
       orderBy: 'occurred_on DESC, id DESC',
     );
     return maps.map(Movement.fromMap).toList();
@@ -61,43 +64,49 @@ class MovementsRepository {
   /// Gastos totales del mes (negativos).
   Future<int> getMonthlyExpenses(String yearMonth) async {
     final db = await _db.database;
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(m.amount_minor), 0) AS total
+    final result = await db.rawQuery(
+      '''
+      SELECT COALESCE(SUM(m.amount), 0) AS total
       FROM movements m
       JOIN categories c ON c.id = m.category_id
       WHERE c.classification = 'expense'
-        AND m.occurred_on LIKE ?
-    ''', ['$yearMonth%']);
+        AND substr(m.occurred_on, 1, 6) = ?
+    ''',
+      [yearMonth.replaceAll('-', '')],
+    );
     return (result.first['total'] as int?) ?? 0;
   }
 
   /// Ingresos totales del mes (positivos).
   Future<int> getMonthlyIncome(String yearMonth) async {
     final db = await _db.database;
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(m.amount_minor), 0) AS total
+    final result = await db.rawQuery(
+      '''
+      SELECT COALESCE(SUM(m.amount), 0) AS total
       FROM movements m
       JOIN categories c ON c.id = m.category_id
       WHERE c.classification = 'income'
-        AND m.occurred_on LIKE ?
-    ''', ['$yearMonth%']);
+        AND substr(m.occurred_on, 1, 6) = ?
+    ''',
+      [yearMonth.replaceAll('-', '')],
+    );
     return (result.first['total'] as int?) ?? 0;
   }
 
   /// Inserta movimiento + saldo inicial en una sola transacción.
   Future<void> createWithInitialBalance({
     required int accountId,
-    required int amountMinor,
+    required int amount,
     required int categoryId,
     required String description,
-    required String occurredOn,
+    required int occurredOn,
   }) async {
     final db = await _db.database;
     await db.transaction((tx) async {
       await tx.insert('movements', {
         'account_id': accountId,
         'category_id': categoryId,
-        'amount_minor': amountMinor,
+        'amount': amount,
         'description': description,
         'occurred_on': occurredOn,
         'created_at_ms': DateTime.now().millisecondsSinceEpoch,

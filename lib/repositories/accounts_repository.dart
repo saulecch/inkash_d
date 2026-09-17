@@ -57,7 +57,7 @@ class AccountsRepository {
   Future<int> getBalance(int accountId) async {
     final db = await _db.database;
     final result = await db.rawQuery(
-      'SELECT COALESCE(SUM(amount_minor), 0) AS total FROM movements WHERE account_id = ?',
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM movements WHERE account_id = ?',
       [accountId],
     );
     return (result.first['total'] as int?) ?? 0;
@@ -67,7 +67,7 @@ class AccountsRepository {
   Future<int> getTotalBalance() async {
     final db = await _db.database;
     final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(m.amount_minor), 0) AS total
+      SELECT COALESCE(SUM(m.amount), 0) AS total
       FROM movements m
       JOIN accounts a ON a.id = m.account_id
       WHERE a.is_archived = 0

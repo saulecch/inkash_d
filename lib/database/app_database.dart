@@ -6,7 +6,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'inkash.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 3;
 
   Database? _db;
 
@@ -25,14 +25,100 @@ class AppDatabase {
       version: _dbVersion,
       onConfigure: _onConfigure,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onConfigure(Database db) async {
     await db.execute('PRAGMA foreign_keys = ON;');
-    await db.execute('PRAGMA journal_mode = WAL;');
+    await db.rawQuery('PRAGMA journal_mode = WAL;');
     await db.execute('PRAGMA synchronous = FULL;');
-    await db.execute('PRAGMA busy_timeout = 5000;');
+    await db.rawQuery('PRAGMA busy_timeout = 5000;');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      final columns = await db.rawQuery('PRAGMA table_info(movements)');
+      final columnNames = columns.map((column) => column['name']).toSet();
+      final amountColumn = columnNames.contains('amount')
+          ? 'amount'
+          : 'amount_minor';
+
+      await db.execute('''
+        CREATE TABLE movements_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+          category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+          amount INTEGER NOT NULL CHECK (amount != 0),
+          description TEXT NOT NULL,
+          occurred_on INTEGER NOT NULL,
+          notes TEXT,
+          created_at_ms INTEGER NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        INSERT INTO movements_v2 (
+          id,
+          account_id,
+          category_id,
+          amount,
+          description,
+          occurred_on,
+          notes,
+          created_at_ms
+        )
+        SELECT
+          id,
+          account_id,
+          category_id,
+          $amountColumn,
+          description,
+          CASE
+            WHEN typeof(occurred_on) = 'integer' THEN occurred_on
+            WHEN occurred_on LIKE '____-__-__%' THEN CAST(
+              replace(substr(occurred_on, 1, 10), '-', '') || '000000000'
+              AS INTEGER
+            )
+            ELSE CAST(occurred_on AS INTEGER)
+          END,
+          notes,
+          created_at_ms
+        FROM movements
+      ''');
+
+      await db.execute('DROP TABLE movements');
+      await db.execute('ALTER TABLE movements_v2 RENAME TO movements');
+      await db.execute('''
+        CREATE INDEX idx_movements_occurred_on
+        ON movements(occurred_on)
+      ''');
+      await db.execute('''
+        CREATE INDEX idx_movements_account_id
+        ON movements(account_id)
+      ''');
+      await db.execute('''
+        CREATE INDEX idx_movements_category_id
+        ON movements(category_id)
+      ''');
+      await db.execute('''
+        CREATE INDEX idx_movements_kind_date
+        ON movements(category_id, occurred_on)
+      ''');
+    }
+
+    if (oldVersion < 3) await _seedDefaultAccount(db);
+  }
+
+  Future<void> _seedDefaultAccount(DatabaseExecutor db) async {
+    await db.rawInsert(
+      '''
+        INSERT INTO accounts (name, type, is_archived, created_at_ms)
+        SELECT ?, ?, 0, ?
+        WHERE NOT EXISTS (SELECT 1 FROM accounts)
+      ''',
+      ['Efectivo', 'cash', DateTime.now().millisecondsSinceEpoch],
+    );
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -47,6 +133,8 @@ class AppDatabase {
           created_at_ms INTEGER NOT NULL
         )
       ''');
+
+      await _seedDefaultAccount(tx);
 
       // --- categories ---
       await tx.execute('''
@@ -72,13 +160,19 @@ class AppDatabase {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
           category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-          amount_minor INTEGER NOT NULL CHECK (amount_minor != 0),
+          amount INTEGER NOT NULL CHECK (amount != 0),
           description TEXT NOT NULL,
-          occurred_on TEXT NOT NULL,
+          occurred_on INTEGER NOT NULL,
           notes TEXT,
           created_at_ms INTEGER NOT NULL
         )
       ''');
+      // (año, mes, dia, hora, minutos, segundos, milisegundos)
+      // (2026,09,17,11,18,22,27,100).aentero
+      // 2026091711182227100
+      // UTC -6
+      // 2026091711182227100 06
+      // zona horaria
 
       await tx.execute('''
         CREATE INDEX idx_movements_occurred_on
@@ -143,10 +237,7 @@ class AppDatabase {
       ];
 
       for (final cat in categorias) {
-        await tx.insert('categories', {
-          ...cat,
-          'is_archived': 0,
-        });
+        await tx.insert('categories', {...cat, 'is_archived': 0});
       }
     });
   }

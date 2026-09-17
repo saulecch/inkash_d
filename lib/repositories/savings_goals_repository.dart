@@ -57,13 +57,16 @@ class SavingsGoalsRepository {
   }
 
   /// Aporta o retira de una meta de forma atómica.
-  Future<void> addContribution(int goalId, int amountMinor) async {
+  Future<void> addContribution(int goalId, int amount) async {
     final db = await _db.database;
-    await db.rawUpdate('''
+    await db.rawUpdate(
+      '''
       UPDATE savings_goals
       SET saved_amount_minor = saved_amount_minor + ?
       WHERE id = ?
-    ''', [amountMinor, goalId]);
+    ''',
+      [amount, goalId],
+    );
   }
 
   Future<void> archive(int id) async {

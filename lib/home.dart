@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:riverpod/riverpod.dart';
 
 import 'features/home/presentation/controllers/home_controller.dart';
+import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
 
@@ -43,6 +44,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final summary = widget.controller.summary;
     final loading = widget.controller.loading;
+    final error = widget.controller.error;
 
     return Scaffold(
       body: SafeArea(
@@ -64,6 +66,14 @@ class _HomePageState extends State<HomePage> {
               const Center(child: CircularProgressIndicator(color: kLima))
             else if (summary != null)
               _buildBudgetSection(summary)
+            else if (error != null)
+              Center(
+                child: Text(
+                  error,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: kPeligro),
+                ),
+              )
             else
               const Center(
                 child: Text(
@@ -96,9 +106,9 @@ class _HomePageState extends State<HomePage> {
                   Icons.receipt,
                   mov.description,
                   _formatDate(mov.occurredOn),
-                  '${mov.amountMinor >= 0 ? '+' : '−'} ${mov.amountFormatted}',
+                  '${mov.amount >= 0 ? '+' : '−'} ${mov.amountFormatted}',
                   _formatDate(mov.occurredOn),
-                  isIncome: mov.amountMinor >= 0,
+                  isIncome: mov.amount >= 0,
                 ),
           ],
         ),
@@ -107,6 +117,14 @@ class _HomePageState extends State<HomePage> {
         currentIndex: 0,
         selectedItemColor: kLima,
         type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          if (index == 2) {
+            showMovementBottomSheet(
+              context: context,
+              controller: widget.controller,
+            );
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(
@@ -121,10 +139,7 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.list_alt),
             label: 'Historial',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Ajustes',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
         ],
       ),
     );
@@ -133,8 +148,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildBudgetSection(HomeSummary summary) {
     final balanceFormatted = summary.formatQuetzales(summary.totalBalanceMinor);
     final spentFormatted = summary.formatQuetzales(summary.monthlySpentMinor);
-    final budgetFormatted =
-        summary.formatQuetzales(summary.monthlyBudgetMinor);
+    final budgetFormatted = summary.formatQuetzales(summary.monthlyBudgetMinor);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,10 +159,7 @@ class _HomePageState extends State<HomePage> {
         ),
         Text(
           balanceFormatted,
-          style: const TextStyle(
-            fontSize: 52,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontSize: 52, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 10),
         if (summary.monthlyBudgetMinor > 0)
@@ -180,26 +191,40 @@ class _HomePageState extends State<HomePage> {
 
     return Row(
       children: [
-        heroCard('Cuentas', summary?.formatQuetzales(summary.totalBalanceMinor) ?? 'Q0.00'),
+        heroCard(
+          'Cuentas',
+          summary?.formatQuetzales(summary.totalBalanceMinor) ?? 'Q0.00',
+        ),
         const SizedBox(width: 16),
         heroCard('Metas de ahorro', goalsText),
       ],
     );
   }
 
-  String _formatDate(String isoDate) {
+  String _formatDate(int encodedDate) {
     try {
-      final parts = isoDate.split('-');
-      if (parts.length != 3) return isoDate;
-      final day = int.parse(parts[2]);
-      final month = int.parse(parts[1]);
+      final value = encodedDate.toString();
+      if (value.length < 8) return value;
+      final day = int.parse(value.substring(6, 8));
+      final month = int.parse(value.substring(4, 6));
       final months = [
-        '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+        '',
+        'Ene',
+        'Feb',
+        'Mar',
+        'Abr',
+        'May',
+        'Jun',
+        'Jul',
+        'Ago',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dic',
       ];
       return '$day ${months[month]}';
     } catch (_) {
-      return isoDate;
+      return encodedDate.toString();
     }
   }
 }
@@ -229,10 +254,7 @@ Widget detailListTile(
       children: [
         Text(
           amount,
-          style: TextStyle(
-            fontSize: 13,
-            color: isIncome ? kLima : kTexto,
-          ),
+          style: TextStyle(fontSize: 13, color: isIncome ? kLima : kTexto),
         ),
         Text(date, style: const TextStyle(fontSize: 10, color: kMuted)),
       ],
