@@ -1,0 +1,8 @@
+# Quién revisa qué. Con "Require review from Code Owners" en la protección de
+# main, GitHub pide automáticamente la revisión de estas personas.
+# Formato: <ruta> <@usuario o @org/equipo>
+
+*                    @saulecch
+/lib/database/       @saulecch
+/lib/repositories/   @saulecch
+/docs/adr/           @saulecch
