@@ -1,0 +1,79 @@
+# CI de Inkash (sección D): cada push y cada Pull Request se verifica en una máquina limpia.
+# "En mi compu sí funciona" deja de ser un argumento.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: # botón "Run workflow" en la pestaña Actions
+
+# Si haces push dos veces seguidas a la misma rama, se cancela la corrida vieja.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad:
+    name: Formato, análisis y pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Misma versión que en las computadoras del curso: builds reproducibles.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.8
+          cache: true
+
+      - name: Dependencias
+        run: flutter pub get
+
+      - name: Formato (dart format)
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Análisis estático (flutter analyze)
+        run: flutter analyze
+
+      # sqflite_common_ffi corre SQLite nativo de Linux: así las pruebas de
+      # base de datos se ejecutan sin emulador. Solo hay que instalarlo.
+      - name: SQLite para las pruebas
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Pruebas (flutter test)
+        run: flutter test --reporter expanded
+
+  apk:
+    name: APK de prueba
+    needs: calidad # solo si la calidad pasó
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.8
+          cache: true
+
+      - run: flutter pub get
+
+      # APK debug: sirve para la demo del sprint. El build FIRMADO para
+      # Google Play (appbundle) se ve en S17.
+      - name: Compilar APK
+        run: flutter build apk --debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inkash_d-apk-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
