@@ -2,31 +2,50 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class AppDatabase {
-  AppDatabase._();
-  static final AppDatabase instance = AppDatabase._();
+  // S14-01: factory y path se pueden inyectar. En las pruebas usamos
+  // sqflite_common_ffi y un archivo temporal; en la app, los valores reales.
+  AppDatabase({this.factory, this.path});
+  static final AppDatabase instance = AppDatabase();
 
   static const _dbName = 'inkash.db';
   static const _dbVersion = 3;
 
-  Database? _db;
+  // Se resuelve al ABRIR, no al construir: crear un repositorio en una
+  // prueba de widget no debe exigir que sqflite esté inicializado.
+  final DatabaseFactory? factory;
+  final String? path;
 
-  Future<Database> get database async {
-    if (_db != null) return _db!;
-    _db = await _open();
-    return _db!;
-  }
+  // Guardamos el Future (no la Database): si dos pantallas piden la base al
+  // mismo tiempo, las dos esperan la MISMA apertura en vez de abrir dos.
+  Future<Database>? _database;
+
+  Future<Database> get database => _database ??= _open();
 
   Future<Database> _open() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, _dbName);
+    final dbFactory = factory ?? databaseFactory;
+    try {
+      final dbPath = path ?? join(await dbFactory.getDatabasesPath(), _dbName);
+      return await dbFactory.openDatabase(
+        dbPath,
+        options: OpenDatabaseOptions(
+          version: _dbVersion,
+          onConfigure: _onConfigure,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+        ),
+      );
+    } catch (_) {
+      // Si falló, olvidamos el Future para que "Reintentar" vuelva a abrir.
+      _database = null;
+      rethrow;
+    }
+  }
 
-    return openDatabase(
-      path,
-      version: _dbVersion,
-      onConfigure: _onConfigure,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
+  Future<void> close() async {
+    final pending = _database;
+    if (pending == null) return;
+    _database = null;
+    await (await pending).close();
   }
 
   Future<void> _onConfigure(Database db) async {

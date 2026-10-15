@@ -1,8 +1,13 @@
 import '../database/app_database.dart';
 import '../models/movement.dart';
+import '../models/new_movement.dart';
 
 class MovementsRepository {
-  final AppDatabase _db = AppDatabase.instance;
+  // S14-01: la base se inyecta para probar con un archivo temporal.
+  MovementsRepository({AppDatabase? database})
+    : _db = database ?? AppDatabase.instance;
+
+  final AppDatabase _db;
 
   Future<List<Movement>> getAll() async {
     final db = await _db.database;
@@ -44,6 +49,34 @@ class MovementsRepository {
   Future<int> insert(Movement movement) async {
     final db = await _db.database;
     return db.insert('movements', movement.toMap());
+  }
+
+  /// Guarda lo que llega del formulario. Leer la categoría e insertar van en
+  /// UNA transacción: si alguien archiva la categoría entre la lectura y el
+  /// INSERT, no queda un movimiento con el signo equivocado.
+  Future<int> insertNew(NewMovement newMovement) async {
+    final db = await _db.database;
+    return db.transaction((txn) async {
+      final rows = await txn.query(
+        'categories',
+        columns: ['classification'],
+        where: 'id = ? AND is_archived = 0', // Siempre con ?, nunca concatenar.
+        whereArgs: [newMovement.categoryId],
+      );
+      if (rows.isEmpty) {
+        throw StateError('La categoría ya no está disponible.');
+      }
+      // El gasto se guarda NEGATIVO: así SUM(amount) es el saldo.
+      // La fuente de verdad del signo es la categoría, no la pantalla.
+      final isExpense = rows.single['classification'] == 'expense';
+      final movement = newMovement.toMovement(
+        signedAmount: isExpense
+            ? -newMovement.amountMinor
+            : newMovement.amountMinor,
+        createdAtMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      return txn.insert('movements', movement.toMap());
+    });
   }
 
   Future<void> update(Movement movement) async {

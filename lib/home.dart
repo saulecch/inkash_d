@@ -117,13 +117,18 @@ class _HomePageState extends State<HomePage> {
         currentIndex: 0,
         selectedItemColor: kLima,
         type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          if (index == 2) {
-            showMovementBottomSheet(
-              context: context,
-              controller: widget.controller,
-            );
-          }
+        onTap: (index) async {
+          if (index != 2) return;
+          // El sheet devuelve true con Navigator.pop(true) si guardó.
+          final saved = await showMovementBottomSheet(
+            context: context,
+            loadOptions: widget.controller.loadFormOptions,
+            onSave: widget.controller.saveMovement,
+          );
+          if (saved != true || !context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Movimiento guardado')));
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),

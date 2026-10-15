@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../../../../models/home_summary.dart';
+import '../../../../models/movement_form_options.dart';
+import '../../../../models/new_movement.dart';
 import '../../../../repositories/accounts_repository.dart';
 import '../../../../repositories/budgets_repository.dart';
 import '../../../../repositories/categories_repository.dart';
@@ -75,8 +77,7 @@ class MovimientosController extends ChangeNotifier {
 
     try {
       final now = DateTime.now();
-      final yearMonth =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
       final results = await Future.wait([
         accounts.getTotalBalance(),
@@ -105,5 +106,21 @@ class MovimientosController extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  // S14-01: el formulario ya no toca repositorios. Pide opciones y guarda
+  // a través del controller (formulario -> controller -> repository -> SQL).
+  Future<MovementFormOptions> loadFormOptions() async {
+    return (
+      accounts: await accounts.getActive(),
+      categories: await categories.getAll(),
+    );
+  }
+
+  // Si el INSERT falla, la excepción sube al formulario (que muestra el
+  // error y conserva lo escrito) y NO se recarga nada.
+  Future<void> saveMovement(NewMovement newMovement) async {
+    await movements.insertNew(newMovement);
+    await loadHomeData();
   }
 }

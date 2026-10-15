@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../../../models/account.dart';
 import '../../../../models/category.dart';
-import '../../../../models/movement.dart';
+import '../../../../models/movement_form_options.dart';
+import '../../../../models/new_movement.dart';
 import '../../../../theme.dart';
-import '../controllers/home_controller.dart';
+import '../../../../utils/parse_amount.dart';
 
+// S14-01: el sheet ya no recibe el controller completo, solo dos funciones.
+// No sabe que existen SQLite ni los repositorios, y en las pruebas se le
+// pasan funciones falsas.
 Future<bool?> showMovementBottomSheet({
   required BuildContext context,
-  required MovimientosController controller,
+  required Future<MovementFormOptions> Function() loadOptions,
+  required Future<void> Function(NewMovement newMovement) onSave,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -19,14 +24,20 @@ Future<bool?> showMovementBottomSheet({
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
-    builder: (_) => MovementBottomSheet(controller: controller),
+    builder: (_) =>
+        MovementBottomSheet(loadOptions: loadOptions, onSave: onSave),
   );
 }
 
 class MovementBottomSheet extends StatefulWidget {
-  const MovementBottomSheet({required this.controller, super.key});
+  const MovementBottomSheet({
+    required this.loadOptions,
+    required this.onSave,
+    super.key,
+  });
 
-  final MovimientosController controller;
+  final Future<MovementFormOptions> Function() loadOptions;
+  final Future<void> Function(NewMovement newMovement) onSave;
 
   @override
   State<MovementBottomSheet> createState() => _MovementBottomSheetState();
@@ -71,14 +82,13 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
 
   Future<void> _loadOptions() async {
     try {
-      final accounts = await widget.controller.accounts.getActive();
-      final categories = await widget.controller.categories.getAll();
+      final options = await widget.loadOptions();
       if (!mounted) return;
 
       setState(() {
-        _accounts = accounts;
-        _categories = categories;
-        _accountId = accounts.firstOrNull?.id;
+        _accounts = options.accounts;
+        _categories = options.categories;
+        _accountId = options.accounts.firstOrNull?.id;
         _categoryId = _availableCategories.firstOrNull?.id;
         _loading = false;
       });
@@ -120,65 +130,39 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
     });
   }
 
-  int? _parseAmount(String input) {
-    final normalized = input.trim().replaceAll(',', '.');
-    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(normalized)) return null;
-
-    final parts = normalized.split('.');
-    final whole = int.parse(parts.first);
-    final decimals = parts.length == 1
-        ? 0
-        : int.parse(parts.last.padRight(2, '0'));
-    return whole * 100 + decimals;
-  }
-
-  int _encodeDate(DateTime date) {
-    String twoDigits(int value) => value.toString().padLeft(2, '0');
-
-    final encoded =
-        '${date.year}'
-        '${twoDigits(date.month)}'
-        '${twoDigits(date.day)}'
-        '${twoDigits(date.hour)}'
-        '${twoDigits(date.minute)}'
-        '${twoDigits(date.second)}'
-        '${date.millisecond.toString().padLeft(3, '0')}';
-    return int.parse(encoded);
-  }
-
   Future<void> _save() async {
+    // Guard contra doble toque: se revisa ANTES del primer await.
+    // El botón se deshabilita en el siguiente frame; dos toques en el mismo
+    // frame llegarían los dos aquí. Antes de S14 se guardaba dos veces.
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
-
-    final parsedAmount = _parseAmount(_amountController.text)!;
-    final amount = _classification == 'expense' ? -parsedAmount : parsedAmount;
-    final now = DateTime.now();
 
     setState(() {
       _saving = true;
       _error = null;
     });
 
+    final notes = _notesController.text.trim();
     try {
-      await widget.controller.movements.insert(
-        Movement(
+      await widget.onSave(
+        NewMovement(
           accountId: _accountId!,
           categoryId: _categoryId!,
-          amount: amount,
+          // Positivo: el repositorio pone el signo según la categoría.
+          amountMinor: parseAmountMinor(_amountController.text)!,
           description: _descriptionController.text.trim(),
-          occurredOn: _encodeDate(_occurredOn),
-          notes: _notesController.text.trim().isEmpty
-              ? null
-              : _notesController.text.trim(),
-          createdAtMs: now.millisecondsSinceEpoch,
+          occurredAt: _occurredOn,
+          notes: notes.isEmpty ? null : notes,
         ),
       );
-      await widget.controller.loadHomeData();
+      // Después de un await la pantalla pudo cerrarse: siempre preguntar.
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
+      // El formulario conserva lo escrito para que el usuario reintente.
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = 'No fue posible guardar el movimiento.';
+        _error = 'No fue posible guardar el movimiento. Intenta otra vez.';
       });
     }
   }
@@ -255,9 +239,8 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                 'Monto',
               ).copyWith(prefixText: 'Q ', hintText: '0.00'),
               validator: (value) {
-                final amount = _parseAmount(value ?? '');
-                if (amount == null || amount <= 0) {
-                  return 'Ingresa un monto válido mayor que cero.';
+                if (parseAmountMinor(value ?? '') == null) {
+                  return 'Monto inválido: mayor que 0 y hasta 2 decimales.';
                 }
                 return null;
               },
@@ -358,13 +341,24 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
+              // Mientras guarda, el botón dice qué está pasando (no solo gira).
               child: _saving
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: kFondo,
-                      ),
+                  ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: kFondo,
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Guardando…',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
                     )
                   : const Text(
                       'Guardar movimiento',
