@@ -1,34 +1,175 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Riverpod 3 movió el tipo Override a misc.dart.
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inkash_d/app.dart';
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
-import 'package:riverpod/riverpod.dart';
+import 'package:inkash_d/models/monthly_budget.dart';
+import 'package:inkash_d/models/movement.dart';
+import 'package:inkash_d/models/new_movement.dart';
+import 'package:inkash_d/repositories/accounts_repository.dart';
+import 'package:inkash_d/repositories/budgets_repository.dart';
+import 'package:inkash_d/repositories/movements_repository.dart';
+import 'package:inkash_d/repositories/savings_goals_repository.dart';
+
+// Datos de PRUEBA: occurredOn en el formato real (local, 17 dígitos).
+const sampleMovements = [
+  Movement(
+    id: 2,
+    accountId: 1,
+    categoryId: 3,
+    amount: -3800,
+    description: 'Uber al trabajo',
+    occurredOn: 20261015081500000,
+    createdAtMs: 1760537700000,
+  ),
+  Movement(
+    id: 1,
+    accountId: 1,
+    categoryId: 1,
+    amount: 420000,
+    description: 'Salario quincena',
+    occurredOn: 20261014090000000,
+    createdAtMs: 1760454000000,
+  ),
+];
+
+// Repositorios falsos: responden lo que la prueba quiera, sin SQLite.
+// `rows` hace de tabla `movements` compartida entre los falsos.
+class FakeMovementsRepository extends MovementsRepository {
+  FakeMovementsRepository(this.recent);
+
+  Future<List<Movement>> Function() recent;
+  final rows = <Movement>[];
+  var recentCalls = 0;
+
+  @override
+  Future<List<Movement>> getRecent(int limit) {
+    recentCalls++;
+    return recent();
+  }
+
+  @override
+  Future<int> getMonthlyExpenses(String yearMonth) async => -3800;
+
+  @override
+  Future<int> insertNew(NewMovement newMovement) async {
+    rows.insert(
+      0,
+      newMovement.toMovement(
+        signedAmount: -newMovement.amountMinor,
+        createdAtMs: 0,
+      ),
+    );
+    return rows.length;
+  }
+}
+
+class FakeAccountsRepository extends AccountsRepository {
+  @override
+  Future<int> getTotalBalance() async => 416200;
+}
+
+class FakeBudgetsRepository extends BudgetsRepository {
+  @override
+  Future<MonthlyBudget?> getByMonth(String monthStart) async => null;
+}
+
+class FakeSavingsGoalsRepository extends SavingsGoalsRepository {
+  @override
+  Future<int> getActiveCount() async => 3;
+}
+
+List<Override> overridesWith(FakeMovementsRepository movements) => [
+  // Override: en la prueba, cada provider entrega su repositorio falso.
+  movementsRepositoryProvider.overrideWithValue(movements),
+  accountsRepositoryProvider.overrideWithValue(FakeAccountsRepository()),
+  budgetsRepositoryProvider.overrideWithValue(FakeBudgetsRepository()),
+  savingsGoalsRepositoryProvider.overrideWithValue(
+    FakeSavingsGoalsRepository(),
+  ),
+];
+
+Widget appWith(FakeMovementsRepository movements) {
+  return ProviderScope(
+    overrides: overridesWith(movements),
+    child: const InkashApp(),
+  );
+}
 
 void main() {
-  test('el controller se instancia correctamente', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+  testWidgets('cargando -> datos: muestra saldo y movimientos', (tester) async {
+    final reading = Completer<List<Movement>>();
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() => reading.future)),
+    );
 
-    final controller = container.read(movimientosControllerProvider);
+    // Mientras el Future no termina: estado de carga.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    expect(controller, isNotNull);
-    expect(controller.summary, isNull);
-    expect(controller.loading, isFalse);
+    reading.complete(sampleMovements);
+    await tester.pumpAndSettle();
+
+    // Saldo grande + tarjeta "Cuentas".
+    expect(find.textContaining('Q4,162.00'), findsNWidgets(2));
+    expect(find.text('Uber al trabajo'), findsOneWidget);
+    expect(find.text('3 activas'), findsOneWidget);
   });
 
-  test('loadHomeData ejecuta sin errores en DB de test', () async {
-    final container = ProviderContainer();
+  testWidgets('vacío: invita a registrar el primer movimiento', (tester) async {
+    await tester.pumpWidget(appWith(FakeMovementsRepository(() async => [])));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Aún no hay movimientos'), findsOneWidget);
+  });
+
+  testWidgets('error -> Reintentar -> datos', (tester) async {
+    final movements = FakeMovementsRepository(
+      () async => throw Exception('disco lleno'),
+    );
+    await tester.pumpWidget(appWith(movements));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No pudimos leer tus movimientos.'), findsOneWidget);
+    // retry: null -> Riverpod NO reintentó por su cuenta.
+    expect(movements.recentCalls, 1);
+
+    // El usuario reintenta y esta vez la base responde.
+    movements.recent = () async => sampleMovements;
+    await tester.tap(find.text('Reintentar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Uber al trabajo'), findsOneWidget);
+  });
+
+  test('saveMovement guarda y vuelve a consultar (invalidateSelf)', () async {
+    late final FakeMovementsRepository movements;
+    movements = FakeMovementsRepository(() async => [...movements.rows]);
+    final container = ProviderContainer(overrides: overridesWith(movements));
     addTearDown(container.dispose);
 
-    final controller = container.read(movimientosControllerProvider);
+    expect(
+      (await container.read(homeControllerProvider.future)).recentMovements,
+      isEmpty,
+    );
 
-    // En un entorno de test, la DB puede no estar disponible.
-    // Verificamos que no lance excepciones no controladas.
-    try {
-      await controller.loadHomeData();
-      // Si la DB no existe, el summary queda null y el error se captura.
-    } catch (_) {
-      // Esperado en entorno sin DB.
-    }
+    await container
+        .read(homeControllerProvider.notifier)
+        .saveMovement(
+          NewMovement(
+            accountId: 1,
+            categoryId: 3,
+            amountMinor: 1250,
+            description: 'Bus demo',
+            occurredAt: DateTime(2026, 10, 15, 8, 15),
+          ),
+        );
 
-    expect(controller.loading, isFalse);
+    final summary = container.read(homeControllerProvider).requireValue;
+    expect(summary.recentMovements.single.description, 'Bus demo');
+    expect(movements.recentCalls, 2); // se leyó de nuevo, no lista.add
   });
 }

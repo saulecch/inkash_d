@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:riverpod/riverpod.dart';
 
-import 'features/home/presentation/controllers/home_controller.dart';
 import 'home.dart';
 import 'theme.dart';
 
+// Ya no recibe controller ni container: cada pantalla los pide con ref.
 class InkashApp extends StatelessWidget {
-  const InkashApp({
-    required this.controller,
-    required this.container,
-    super.key,
-  });
-
-  final MovimientosController controller;
-  final ProviderContainer container;
+  const InkashApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +13,7 @@ class InkashApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Inkash',
       theme: buildInkashTheme(),
-      home: HomePage(controller: controller, container: container),
+      home: const HomePage(),
     );
   }
 }

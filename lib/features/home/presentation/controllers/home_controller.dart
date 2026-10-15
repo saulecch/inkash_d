@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart';
-import 'package:riverpod/riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../models/home_summary.dart';
 import '../../../../models/movement_form_options.dart';
@@ -11,6 +10,8 @@ import '../../../../repositories/movements_repository.dart';
 import '../../../../repositories/savings_goals_repository.dart';
 
 // --- Providers de repositories (singletons) ---
+// S14-02: además de compartir una instancia, permiten que las pruebas de
+// widget los reemplacen por repositorios falsos (`overrideWithValue`).
 
 final accountsRepositoryProvider = Provider<AccountsRepository>((ref) {
   return AccountsRepository();
@@ -34,93 +35,75 @@ final savingsGoalsRepositoryProvider = Provider<SavingsGoalsRepository>((ref) {
 
 // --- Provider principal del controller ---
 
-final movimientosControllerProvider = Provider<MovimientosController>((ref) {
-  return MovimientosController(
-    accounts: ref.read(accountsRepositoryProvider),
-    categories: ref.read(categoriesRepositoryProvider),
-    movements: ref.read(movementsRepositoryProvider),
-    budgets: ref.read(budgetsRepositoryProvider),
-    goals: ref.read(savingsGoalsRepositoryProvider),
-  );
-});
+// AsyncNotifier = estado que se obtiene con un Future.
+// La pantalla recibe un AsyncValue<HomeSummary>: cargando · error · datos.
+final homeControllerProvider =
+    AsyncNotifierProvider<HomeController, HomeSummary>(
+      HomeController.new,
+      // Riverpod 3 reintenta solo los errores. Lo apagamos para que el
+      // usuario vea el error y decida con el botón "Reintentar".
+      retry: (_, _) => null,
+    );
 
 // --- Controller ---
 
-class MovimientosController extends ChangeNotifier {
-  MovimientosController({
-    required this.accounts,
-    required this.categories,
-    required this.movements,
-    required this.budgets,
-    required this.goals,
-  });
+// S14-02: antes era un ChangeNotifier con loading/error/summary a mano.
+// Ahora esos tres estados los modela AsyncValue y no se pueden desincronizar.
+class HomeController extends AsyncNotifier<HomeSummary> {
+  // read (no watch): los repositorios no cambian durante la vida de la app.
+  AccountsRepository get _accounts => ref.read(accountsRepositoryProvider);
+  CategoriesRepository get _categories =>
+      ref.read(categoriesRepositoryProvider);
+  MovementsRepository get _movements => ref.read(movementsRepositoryProvider);
+  BudgetsRepository get _budgets => ref.read(budgetsRepositoryProvider);
+  SavingsGoalsRepository get _goals => ref.read(savingsGoalsRepositoryProvider);
 
-  final AccountsRepository accounts;
-  final CategoriesRepository categories;
-  final MovementsRepository movements;
-  final BudgetsRepository budgets;
-  final SavingsGoalsRepository goals;
+  // build() corre la primera vez que alguien hace ref.watch y cada vez que
+  // se invalida. Mientras el Future no termina, el estado es AsyncLoading;
+  // si lanza, AsyncError. Ya no hace falta try/catch aquí.
+  @override
+  Future<HomeSummary> build() async {
+    final now = DateTime.now();
+    final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-  HomeSummary? _summary;
-  HomeSummary? get summary => _summary;
+    final results = await Future.wait([
+      _accounts.getTotalBalance(),
+      _movements.getMonthlyExpenses(yearMonth),
+      _budgets.getByMonth('$yearMonth-01').then((b) => b?.limitMinor ?? 0),
+      _goals.getActiveCount(),
+      _movements.getRecent(5),
+    ]);
 
-  bool _loading = false;
-  bool get loading => _loading;
+    final totalBalance = results[0] as int;
+    final monthlyExpenses = results[1] as int;
+    final monthlyBudget = results[2] as int;
+    final activeGoals = results[3] as int;
+    final recentMovements = results[4] as List<dynamic>;
 
-  String? _error;
-  String? get error => _error;
-
-  Future<void> loadHomeData() async {
-    _loading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      final now = DateTime.now();
-      final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-
-      final results = await Future.wait([
-        accounts.getTotalBalance(),
-        movements.getMonthlyExpenses(yearMonth),
-        budgets.getByMonth('$yearMonth-01').then((b) => b?.limitMinor ?? 0),
-        goals.getActiveCount(),
-        movements.getRecent(5),
-      ]);
-
-      final totalBalance = results[0] as int;
-      final monthlyExpenses = results[1] as int;
-      final monthlyBudget = results[2] as int;
-      final activeGoals = results[3] as int;
-      final recentMovements = results[4] as List<dynamic>;
-
-      _summary = HomeSummary(
-        totalBalanceMinor: totalBalance,
-        monthlySpentMinor: monthlyExpenses.abs(),
-        monthlyBudgetMinor: monthlyBudget,
-        activeGoals: activeGoals,
-        recentMovements: recentMovements.cast(),
-      );
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _loading = false;
-      notifyListeners();
-    }
+    return HomeSummary(
+      totalBalanceMinor: totalBalance,
+      monthlySpentMinor: monthlyExpenses.abs(),
+      monthlyBudgetMinor: monthlyBudget,
+      activeGoals: activeGoals,
+      recentMovements: recentMovements.cast(),
+    );
   }
 
-  // S14-01: el formulario ya no toca repositorios. Pide opciones y guarda
-  // a través del controller (formulario -> controller -> repository -> SQL).
+  // El formulario no toca repositorios: pide opciones y guarda por aquí.
   Future<MovementFormOptions> loadFormOptions() async {
     return (
-      accounts: await accounts.getActive(),
-      categories: await categories.getAll(),
+      accounts: await _accounts.getActive(),
+      categories: await _categories.getAll(),
     );
   }
 
   // Si el INSERT falla, la excepción sube al formulario (que muestra el
   // error y conserva lo escrito) y NO se recarga nada.
   Future<void> saveMovement(NewMovement newMovement) async {
-    await movements.insertNew(newMovement);
-    await loadHomeData();
+    await _movements.insertNew(newMovement);
+    // Volvemos a consultar SQLite en vez de hacer lista.add(...): la base es
+    // la única fuente de verdad (saldo, orden y totales salen de ahí).
+    ref.invalidateSelf();
+    await future;
   }
 }

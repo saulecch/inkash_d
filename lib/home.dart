@@ -1,152 +1,127 @@
 import 'package:flutter/material.dart';
-import 'package:riverpod/riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({
-    required this.controller,
-    required this.container,
-    super.key,
-  });
-
-  final MovimientosController controller;
-  final ProviderContainer container;
+// S14-02: ConsumerWidget = StatelessWidget + acceso a `ref`. Ya no hace
+// falta addListener/setState: ref.watch reconstruye cuando cambia el estado.
+class HomePage extends ConsumerWidget {
+  const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onControllerUpdate);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.controller.loadHomeData();
-    });
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onControllerUpdate);
-    super.dispose();
-  }
-
-  void _onControllerUpdate() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final summary = widget.controller.summary;
-    final loading = widget.controller.loading;
-    final error = widget.controller.error;
+  Widget build(BuildContext context, WidgetRef ref) {
+    // watch: cuando el estado cambie, este build se vuelve a ejecutar.
+    final summary = ref.watch(homeControllerProvider);
 
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: const [
-                Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
-                Spacer(),
-                Text(
-                  'Julio 2026',
-                  style: TextStyle(fontSize: 12, color: kMuted),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            if (loading && summary == null)
-              const Center(child: CircularProgressIndicator(color: kLima))
-            else if (summary != null)
-              _buildBudgetSection(summary)
-            else if (error != null)
-              Center(
-                child: Text(
-                  error,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: kPeligro),
-                ),
-              )
-            else
-              const Center(
-                child: Text(
-                  'Sin datos disponibles',
-                  style: TextStyle(color: kMuted),
-                ),
-              ),
-            const SizedBox(height: 22),
-            _buildHeroCards(summary),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Últimos movimientos',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text(
-                    'Ver todo',
-                    style: TextStyle(fontSize: 13, color: kLima),
-                  ),
-                ),
-              ],
-            ),
-            if (summary != null)
-              for (final mov in summary.recentMovements)
-                detailListTile(
-                  Icons.receipt,
-                  mov.description,
-                  _formatDate(mov.occurredOn),
-                  '${mov.amount >= 0 ? '+' : '−'} ${mov.amountFormatted}',
-                  _formatDate(mov.occurredOn),
-                  isIncome: mov.amount >= 0,
-                ),
-          ],
+        // Los estados de una consulta asíncrona, explícitos y sin if anidados.
+        // Al recargar (tras guardar) se siguen viendo los datos anteriores.
+        child: summary.when(
+          loading: () =>
+              const Center(child: CircularProgressIndicator(color: kLima)),
+          error: (error, _) =>
+              _LoadError(onRetry: () => ref.invalidate(homeControllerProvider)),
+          data: _buildDashboard,
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        selectedItemColor: kLima,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) async {
-          if (index != 2) return;
-          // El sheet devuelve true con Navigator.pop(true) si guardó.
-          final saved = await showMovementBottomSheet(
-            context: context,
-            loadOptions: widget.controller.loadFormOptions,
-            onSave: widget.controller.saveMovement,
-          );
-          if (saved != true || !context.mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Movimiento guardado')));
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Presupuesto',
+      bottomNavigationBar: _buildBottomBar(context, ref),
+    );
+  }
+
+  Widget _buildDashboard(HomeSummary summary) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: const [
+            Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
+            Spacer(),
+            Text('Julio 2026', style: TextStyle(fontSize: 12, color: kMuted)),
+          ],
+        ),
+        const SizedBox(height: 22),
+        _buildBudgetSection(summary),
+        const SizedBox(height: 22),
+        _buildHeroCards(summary),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Últimos movimientos',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            TextButton(
+              onPressed: () {},
+              child: const Text(
+                'Ver todo',
+                style: TextStyle(fontSize: 13, color: kLima),
+              ),
+            ),
+          ],
+        ),
+        // Estado vacío: también es un estado que hay que diseñar.
+        if (summary.recentMovements.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Text(
+              'Aún no hay movimientos.\nToca + para registrar el primero.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: kMuted),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle, size: 34),
-            label: 'Agregar',
+        for (final mov in summary.recentMovements)
+          detailListTile(
+            Icons.receipt,
+            mov.description,
+            _formatDate(mov.occurredOn),
+            '${mov.amount >= 0 ? '+' : '−'} ${mov.amountFormatted}',
+            _formatDate(mov.occurredOn),
+            isIncome: mov.amount >= 0,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt),
-            label: 'Historial',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
-        ],
-      ),
+      ],
+    );
+  }
+
+  Widget _buildBottomBar(BuildContext context, WidgetRef ref) {
+    return BottomNavigationBar(
+      currentIndex: 0,
+      selectedItemColor: kLima,
+      type: BottomNavigationBarType.fixed,
+      onTap: (index) async {
+        if (index != 2) return;
+        // read (no watch): en un callback solo queremos llamar un método.
+        final controller = ref.read(homeControllerProvider.notifier);
+        // El sheet devuelve true con Navigator.pop(true) si guardó.
+        final saved = await showMovementBottomSheet(
+          context: context,
+          loadOptions: controller.loadFormOptions,
+          onSave: controller.saveMovement,
+        );
+        if (saved != true || !context.mounted) return;
+        // El controller ya reconsultó SQLite; la lista se actualiza sola
+        // porque HomePage hace ref.watch.
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Movimiento guardado')));
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.bar_chart),
+          label: 'Presupuesto',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.add_circle, size: 34),
+          label: 'Agregar',
+        ),
+        BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Historial'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
+      ],
     );
   }
 
@@ -189,17 +164,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildHeroCards(HomeSummary? summary) {
-    final goalsText = summary != null
-        ? '${summary.activeGoals} activa${summary.activeGoals != 1 ? 's' : ''}'
-        : '0 activas';
+  Widget _buildHeroCards(HomeSummary summary) {
+    final goals = summary.activeGoals;
+    final goalsText = '$goals activa${goals != 1 ? 's' : ''}';
 
     return Row(
       children: [
-        heroCard(
-          'Cuentas',
-          summary?.formatQuetzales(summary.totalBalanceMinor) ?? 'Q0.00',
-        ),
+        heroCard('Cuentas', summary.formatQuetzales(summary.totalBalanceMinor)),
         const SizedBox(width: 16),
         heroCard('Metas de ahorro', goalsText),
       ],
@@ -285,4 +256,33 @@ Widget heroCard(String title, String content) {
       ),
     ),
   );
+}
+
+// Estado de error: mensaje humano + una acción. Nunca un stack trace.
+class _LoadError extends StatelessWidget {
+  const _LoadError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: kPeligro, size: 40),
+            const SizedBox(height: 12),
+            const Text(
+              'No pudimos leer tus movimientos.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
+          ],
+        ),
+      ),
+    );
+  }
 }
