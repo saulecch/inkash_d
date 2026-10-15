@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- S14-03: sin este permiso la app en RELEASE no tiene internet.
+         En debug funciona igual (el manifiesto de debug ya lo trae),
+         por eso este error suele descubrirse hasta publicar. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="inkash_d"
         android:name="${applicationName}"

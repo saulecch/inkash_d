@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/home/presentation/controllers/home_controller.dart';
+import 'features/home/presentation/widgets/exchange_rate_card.dart';
 import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
@@ -47,6 +48,10 @@ class HomePage extends ConsumerWidget {
         _buildBudgetSection(summary),
         const SizedBox(height: 22),
         _buildHeroCards(summary),
+        const SizedBox(height: 12),
+        // S14-03: dato remoto. Si falla, el resto del dashboard sigue vivo:
+        // cada provider tiene su propio estado de carga y error.
+        const ExchangeRateCard(),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

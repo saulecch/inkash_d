@@ -8,7 +8,10 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   static const _dbName = 'inkash.db';
-  static const _dbVersion = 3;
+  // S14-03: versión 4 agrega exchange_rate_cache. Subir la versión es la
+  // ÚNICA forma de cambiar el esquema en teléfonos que ya tienen la app
+  // instalada (onCreate no se vuelve a ejecutar).
+  static const _dbVersion = 4;
 
   // Se resuelve al ABRIR, no al construir: crear un repositorio en una
   // prueba de widget no debe exigir que sqflite esté inicializado.
@@ -127,6 +130,22 @@ class AppDatabase {
     }
 
     if (oldVersion < 3) await _seedDefaultAccount(db);
+
+    // Instalación existente: solo se agrega lo que falta. Nunca se borran
+    // tablas aquí: se perderían los movimientos del usuario.
+    if (oldVersion < 4) await _createExchangeRateCache(db);
+  }
+
+  // Último tipo de cambio USD -> GTQ que sí llegó, para modo sin conexión.
+  // La tasa va en diezmilésimas (INTEGER), nunca REAL.
+  Future<void> _createExchangeRateCache(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE exchange_rate_cache (
+        currency TEXT NOT NULL PRIMARY KEY,
+        gtq_ten_thousandths INTEGER NOT NULL CHECK (gtq_ten_thousandths > 0),
+        updated_at_ms INTEGER NOT NULL
+      )
+    ''');
   }
 
   Future<void> _seedDefaultAccount(DatabaseExecutor db) async {
@@ -258,6 +277,9 @@ class AppDatabase {
       for (final cat in categorias) {
         await tx.insert('categories', {...cat, 'is_archived': 0});
       }
+
+      // Instalación nueva: se crea todo, incluido lo de la versión 4.
+      await _createExchangeRateCache(tx);
     });
   }
 }

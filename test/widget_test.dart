@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkash_d/app.dart';
+import 'package:inkash_d/features/home/presentation/controllers/exchange_rate_provider.dart';
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
+import 'package:inkash_d/models/exchange_rate.dart';
 import 'package:inkash_d/models/monthly_budget.dart';
 import 'package:inkash_d/models/movement.dart';
 import 'package:inkash_d/models/new_movement.dart';
@@ -91,6 +93,13 @@ List<Override> overridesWith(FakeMovementsRepository movements) => [
   savingsGoalsRepositoryProvider.overrideWithValue(
     FakeSavingsGoalsRepository(),
   ),
+  // La tarjeta del dólar no debe salir a internet en una prueba.
+  exchangeRateProvider.overrideWith(
+    (ref) async => ExchangeRate(
+      gtqPerUsdTenThousandths: 76543,
+      updatedAt: DateTime(2026, 10, 15, 8),
+    ),
+  ),
 ];
 
 Widget appWith(FakeMovementsRepository movements) {
@@ -117,6 +126,7 @@ void main() {
     expect(find.textContaining('Q4,162.00'), findsNWidgets(2));
     expect(find.text('Uber al trabajo'), findsOneWidget);
     expect(find.text('3 activas'), findsOneWidget);
+    expect(find.text('Dólar hoy · Q7.65'), findsOneWidget);
   });
 
   testWidgets('vacío: invita a registrar el primer movimiento', (tester) async {
