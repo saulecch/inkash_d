@@ -115,6 +115,44 @@ void main() {
       expect((await db.query('movements')).single['amount'], 420000);
     });
 
+    test('getMonthTotals suma con SQL solo el mes pedido', () async {
+      final repository = MovementsRepository(database: database);
+      final transporte = await categoryId('Transporte');
+      final salario = await categoryId('Salario');
+      Future<void> mov(int category, int amountMinor, DateTime at) =>
+          repository.insertNew(
+            NewMovement(
+              accountId: 1,
+              categoryId: category,
+              amountMinor: amountMinor,
+              description: 'x',
+              occurredAt: at,
+            ),
+          );
+      // Primer y último instante de octubre: SÍ cuentan.
+      await mov(transporte, 1000, DateTime(2026, 10));
+      await mov(transporte, 2550, DateTime(2026, 10, 31, 23, 59, 59, 999));
+      await mov(salario, 50000, DateTime(2026, 10, 15));
+      // Bordes: último instante de septiembre y primero de noviembre, NO.
+      await mov(transporte, 9999, DateTime(2026, 9, 30, 23, 59, 59, 999));
+      await mov(transporte, 9999, DateTime(2026, 11));
+
+      final october = await repository.getMonthTotals(DateTime(2026, 10, 20));
+      expect(october.expensesMinor, 3550); // positivo, aunque se guarda -
+      expect(october.incomeMinor, 50000);
+
+      final empty = await repository.getMonthTotals(DateTime(2026, 1));
+      expect(empty.expensesMinor, 0); // COALESCE: 0, no null
+      expect(empty.incomeMinor, 0);
+
+      // LIMIT ?: los 2 más recientes (noviembre y el 31 de octubre).
+      final recent = await repository.getRecent(2);
+      expect(
+        [for (final m in recent) m.occurredOn],
+        [20261101000000000, 20261031235959999],
+      );
+    });
+
     test('categoría archivada: error y no se inserta nada', () async {
       final repository = MovementsRepository(database: database);
       final transporte = await categoryId('Transporte');

@@ -6,6 +6,7 @@ import 'features/home/presentation/widgets/exchange_rate_card.dart';
 import 'features/navigation/navigation_controller.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
+import 'utils/dates.dart';
 
 // S14-02: ConsumerWidget = StatelessWidget + acceso a `ref`. Ya no hace
 // falta addListener/setState: ref.watch reconstruye cuando cambia el estado.
@@ -36,10 +37,14 @@ class HomePage extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Row(
-          children: const [
-            Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
-            Spacer(),
-            Text('Julio 2026', style: TextStyle(fontSize: 12, color: kMuted)),
+          children: [
+            const Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
+            const Spacer(),
+            // S15-02: el mes real, no 'Julio 2026' escrito a mano.
+            Text(
+              monthName(summary.month),
+              style: const TextStyle(fontSize: 12, color: kMuted),
+            ),
           ],
         ),
         const SizedBox(height: 22),

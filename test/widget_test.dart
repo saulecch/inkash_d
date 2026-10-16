@@ -12,6 +12,7 @@ import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_shee
 import 'package:inkash_d/models/account.dart';
 import 'package:inkash_d/models/category.dart';
 import 'package:inkash_d/models/exchange_rate.dart';
+import 'package:inkash_d/models/month_totals.dart';
 import 'package:inkash_d/models/monthly_budget.dart';
 import 'package:inkash_d/models/movement.dart';
 import 'package:inkash_d/models/new_movement.dart';
@@ -20,27 +21,36 @@ import 'package:inkash_d/repositories/budgets_repository.dart';
 import 'package:inkash_d/repositories/categories_repository.dart';
 import 'package:inkash_d/repositories/movements_repository.dart';
 import 'package:inkash_d/repositories/savings_goals_repository.dart';
+import 'package:inkash_d/utils/clock.dart';
+import 'package:inkash_d/utils/dates.dart';
+import 'package:inkash_d/utils/occurred_on.dart';
 
 // Datos de PRUEBA: occurredOn en el formato real (local, 17 dígitos).
-const sampleMovements = [
-  Movement(
-    id: 2,
-    accountId: 1,
-    categoryId: 3,
-    amount: -3800,
-    description: 'Uber al trabajo',
-    occurredOn: 20261015081500000,
-    createdAtMs: 1760537700000,
-  ),
-  Movement(
-    id: 1,
-    accountId: 1,
-    categoryId: 1,
-    amount: 420000,
-    description: 'Salario quincena',
-    occurredOn: 20261014090000000,
-    createdAtMs: 1760454000000,
-  ),
+// "Hoy" en estas pruebas es el 15 de octubre de 2026 (ver clockProvider).
+Movement _mov(
+  int id,
+  String description,
+  int categoryId,
+  int amount,
+  int occurredOn,
+) => Movement(
+  id: id,
+  accountId: 1,
+  categoryId: categoryId,
+  amount: amount,
+  description: description,
+  occurredOn: occurredOn,
+  createdAtMs: 1760537700000,
+);
+
+final sampleMovements = [
+  _mov(6, 'Uber al trabajo', 3, -3800, 20261015081500000),
+  _mov(5, 'Súper La Torre', 4, -28550, 20261014120000000),
+  _mov(4, 'Salario quincena', 1, 420000, 20261014090000000),
+  _mov(3, 'Café con Ana', 7, -6500, 20261014080000000),
+  _mov(2, 'Recibo de luz', 6, -42000, 20261012090000000),
+  // Septiembre: NO cuenta para los totales de octubre.
+  _mov(1, 'Renta septiembre', 6, -289500, 20260915090000000),
 ];
 
 // Repositorios falsos: responden lo que la prueba quiera, sin SQLite.
@@ -53,13 +63,25 @@ class FakeMovementsRepository extends MovementsRepository {
   var recentCalls = 0;
 
   @override
-  Future<List<Movement>> getRecent(int limit) {
+  Future<List<Movement>> getRecent(int limit) async {
     recentCalls++;
-    return recent();
+    return (await recent()).take(limit).toList();
   }
 
+  // En el falso sumamos en Dart; en el real lo hace SQLite (ver la prueba
+  // de SQL en save_movement_test.dart).
   @override
-  Future<int> getMonthlyExpenses(String yearMonth) async => -3800;
+  Future<MonthTotals> getMonthTotals(DateTime month) async {
+    final from = encodeOccurredOn(monthStart(month));
+    final to = encodeOccurredOn(nextMonthStart(month));
+    final inMonth = (await recent()).where(
+      (m) => m.occurredOn >= from && m.occurredOn < to,
+    );
+    int sum(bool income) => inMonth
+        .where((m) => (m.amount > 0) == income)
+        .fold(0, (total, m) => total + m.amount.abs());
+    return MonthTotals(expensesMinor: sum(false), incomeMinor: sum(true));
+  }
 
   @override
   Future<int> insertNew(NewMovement newMovement) async {
@@ -91,9 +113,17 @@ class FakeCategoriesRepository extends CategoriesRepository {
   ];
 }
 
+// Solo octubre tiene presupuesto: si el reloj no se usara, no habría.
 class FakeBudgetsRepository extends BudgetsRepository {
   @override
-  Future<MonthlyBudget?> getByMonth(String monthStart) async => null;
+  Future<MonthlyBudget?> getByMonth(String monthStart) async =>
+      monthStart == '2026-10-01'
+      ? const MonthlyBudget(
+          monthStart: '2026-10-01',
+          limitMinor: 650000,
+          createdAtMs: 0,
+        )
+      : null;
 }
 
 class FakeSavingsGoalsRepository extends SavingsGoalsRepository {
@@ -110,6 +140,8 @@ List<Override> overridesWith(FakeMovementsRepository movements) => [
   savingsGoalsRepositoryProvider.overrideWithValue(
     FakeSavingsGoalsRepository(),
   ),
+  // Reloj fijo: la prueba dice "Octubre 2026" hoy y dentro de un año.
+  clockProvider.overrideWithValue(() => DateTime(2026, 10, 15, 9)),
   // La tarjeta del dólar no debe salir a internet en una prueba.
   exchangeRateProvider.overrideWith(
     (ref) async => ExchangeRate(
@@ -127,7 +159,9 @@ Widget appWith(FakeMovementsRepository movements) {
 }
 
 void main() {
-  testWidgets('cargando -> datos: muestra saldo y movimientos', (tester) async {
+  testWidgets('cargando -> datos: saldo, mes real y totales del mes', (
+    tester,
+  ) async {
     final reading = Completer<List<Movement>>();
     await tester.pumpWidget(
       appWith(FakeMovementsRepository(() => reading.future)),
@@ -144,6 +178,12 @@ void main() {
     expect(find.text('Uber al trabajo'), findsOneWidget);
     expect(find.text('3 activas'), findsOneWidget);
     expect(find.text('Dólar hoy · Q7.65'), findsOneWidget);
+    // S15-02: el mes sale del reloj (fijo en la prueba).
+    expect(find.text('Octubre 2026'), findsOneWidget);
+    // Gastos de octubre: 38 + 285.50 + 65 + 420. La renta de septiembre no.
+    expect(find.textContaining('Q808.50 de'), findsOneWidget);
+    // Solo los últimos 5 de 6 en el Inicio.
+    expect(find.text('Renta septiembre'), findsNothing);
   });
 
   testWidgets('vacío: invita a registrar el primer movimiento', (tester) async {

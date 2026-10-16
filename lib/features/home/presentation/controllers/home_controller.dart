@@ -8,6 +8,7 @@ import '../../../../repositories/budgets_repository.dart';
 import '../../../../repositories/categories_repository.dart';
 import '../../../../repositories/movements_repository.dart';
 import '../../../../repositories/savings_goals_repository.dart';
+import '../../../../utils/clock.dart';
 
 // --- Providers de repositories (singletons) ---
 // S14-02: además de compartir una instancia, permiten que las pruebas de
@@ -58,34 +59,42 @@ class HomeController extends AsyncNotifier<HomeSummary> {
   BudgetsRepository get _budgets => ref.read(budgetsRepositoryProvider);
   SavingsGoalsRepository get _goals => ref.read(savingsGoalsRepositoryProvider);
 
+  // S15-02: el Inicio muestra solo los últimos N movimientos.
+  static const recentCount = 5;
+
   // build() corre la primera vez que alguien hace ref.watch y cada vez que
   // se invalida. Mientras el Future no termina, el estado es AsyncLoading;
   // si lanza, AsyncError. Ya no hace falta try/catch aquí.
   @override
   Future<HomeSummary> build() async {
-    final now = DateTime.now();
-    final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    // S15-02: la fecha viene del reloj inyectable, no de DateTime.now().
+    final today = ref.read(clockProvider)();
+    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
 
-    final results = await Future.wait([
+    // Consultas independientes EN PARALELO con un record + .wait.
+    // A diferencia de Future.wait([...]), cada resultado conserva su tipo:
+    // ya no hay results[0] as int. Si una falla, build falla (AsyncError).
+    final (
+      totalBalance,
+      monthTotals,
+      monthlyBudget,
+      activeGoals,
+      recent,
+    ) = await (
       _accounts.getTotalBalance(),
-      _movements.getMonthlyExpenses(yearMonth),
+      _movements.getMonthTotals(today),
       _budgets.getByMonth('$yearMonth-01').then((b) => b?.limitMinor ?? 0),
       _goals.getActiveCount(),
-      _movements.getRecent(5),
-    ]);
-
-    final totalBalance = results[0] as int;
-    final monthlyExpenses = results[1] as int;
-    final monthlyBudget = results[2] as int;
-    final activeGoals = results[3] as int;
-    final recentMovements = results[4] as List<dynamic>;
+      _movements.getRecent(recentCount),
+    ).wait;
 
     return HomeSummary(
+      month: today,
       totalBalanceMinor: totalBalance,
-      monthlySpentMinor: monthlyExpenses.abs(),
+      monthTotals: monthTotals,
       monthlyBudgetMinor: monthlyBudget,
       activeGoals: activeGoals,
-      recentMovements: recentMovements.cast(),
+      recentMovements: recent,
     );
   }
 

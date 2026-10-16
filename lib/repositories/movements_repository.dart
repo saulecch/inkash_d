@@ -1,6 +1,9 @@
 import '../database/app_database.dart';
+import '../models/month_totals.dart';
 import '../models/movement.dart';
 import '../models/new_movement.dart';
+import '../utils/dates.dart';
+import '../utils/occurred_on.dart';
 
 class MovementsRepository {
   // S14-01: la base se inyecta para probar con un archivo temporal.
@@ -29,12 +32,17 @@ class MovementsRepository {
     return maps.map(Movement.fromMap).toList();
   }
 
+  // S15-02: el Inicio solo pide los últimos N. El número también es un
+  // valor, así que va como `?` (db.query lo pegaría dentro del texto SQL).
   Future<List<Movement>> getRecent(int limit) async {
     final db = await _db.database;
-    final maps = await db.query(
-      'movements',
-      orderBy: 'occurred_on DESC, id DESC',
-      limit: limit,
+    final maps = await db.rawQuery(
+      '''
+      SELECT * FROM movements
+      ORDER BY occurred_on DESC, id DESC
+      LIMIT ?
+    ''',
+      [limit],
     );
     return maps.map(Movement.fromMap).toList();
   }
@@ -94,36 +102,37 @@ class MovementsRepository {
     await db.delete('movements', where: 'id = ?', whereArgs: [id]);
   }
 
-  /// Gastos totales del mes (negativos).
-  Future<int> getMonthlyExpenses(String yearMonth) async {
+  /// S15-02: gastos e ingresos del mes en UNA consulta: SUM + CASE.
+  /// Sumar en SQL no trae todas las filas a memoria solo para sumarlas.
+  ///
+  /// Antes: dos consultas con `substr(occurred_on, 1, 6) = ?`. Funciona,
+  /// pero convierte cada fila a texto y no aprovecha el índice de
+  /// occurred_on. Ahora: rango medio abierto [inicio de mes, inicio del
+  /// siguiente) codificado igual que occurredOn (local, 17 dígitos).
+  Future<MonthTotals> getMonthTotals(DateTime month) async {
     final db = await _db.database;
-    final result = await db.rawQuery(
+    final row = (await db.rawQuery(
       '''
-      SELECT COALESCE(SUM(m.amount), 0) AS total
+      SELECT
+        COALESCE(SUM(CASE WHEN c.classification = 'expense'
+                          THEN -m.amount END), 0) AS expenses,
+        COALESCE(SUM(CASE WHEN c.classification = 'income'
+                          THEN m.amount END), 0) AS income
       FROM movements m
       JOIN categories c ON c.id = m.category_id
-      WHERE c.classification = 'expense'
-        AND substr(m.occurred_on, 1, 6) = ?
+      WHERE m.occurred_on >= ? AND m.occurred_on < ?
     ''',
-      [yearMonth.replaceAll('-', '')],
+      [
+        encodeOccurredOn(monthStart(month)),
+        encodeOccurredOn(nextMonthStart(month)),
+      ],
+    )).single;
+    // COALESCE: un mes sin movimientos da 0, no null.
+    // 'adjustment' (saldo inicial) no es gasto ni ingreso: queda fuera.
+    return MonthTotals(
+      expensesMinor: row['expenses']! as int,
+      incomeMinor: row['income']! as int,
     );
-    return (result.first['total'] as int?) ?? 0;
-  }
-
-  /// Ingresos totales del mes (positivos).
-  Future<int> getMonthlyIncome(String yearMonth) async {
-    final db = await _db.database;
-    final result = await db.rawQuery(
-      '''
-      SELECT COALESCE(SUM(m.amount), 0) AS total
-      FROM movements m
-      JOIN categories c ON c.id = m.category_id
-      WHERE c.classification = 'income'
-        AND substr(m.occurred_on, 1, 6) = ?
-    ''',
-      [yearMonth.replaceAll('-', '')],
-    );
-    return (result.first['total'] as int?) ?? 0;
   }
 
   /// Inserta movimiento + saldo inicial en una sola transacción.
