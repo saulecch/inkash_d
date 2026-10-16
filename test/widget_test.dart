@@ -12,6 +12,7 @@ import 'package:inkash_d/features/home/presentation/controllers/home_controller.
 import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'package:inkash_d/models/account.dart';
 import 'package:inkash_d/models/category.dart';
+import 'package:inkash_d/models/deleted_movement.dart';
 import 'package:inkash_d/models/exchange_rate.dart';
 import 'package:inkash_d/models/month_totals.dart';
 import 'package:inkash_d/models/monthly_budget.dart';
@@ -115,6 +116,23 @@ class FakeMovementsRepository extends MovementsRepository {
         .where((m) => (m.amount > 0) == income)
         .fold(0, (total, m) => total + m.amount.abs());
     return MonthTotals(expensesMinor: sum(false), incomeMinor: sum(true));
+  }
+
+  // Borrar/restaurar sobre una lista en memoria (solo si la prueba la usa).
+  List<Movement>? data;
+
+  @override
+  Future<DeletedMovement?> delete(int id) async {
+    final movement = data!.firstWhere((m) => m.id == id);
+    data!.remove(movement);
+    return DeletedMovement(movement.toMap());
+  }
+
+  @override
+  Future<void> restore(DeletedMovement deleted) async {
+    data!
+      ..add(Movement.fromMap(deleted.row))
+      ..sort((a, b) => b.occurredOn.compareTo(a.occurredOn));
   }
 
   @override
@@ -356,5 +374,32 @@ void main() {
     await tester.tap(find.text('Reintentar'));
     await tester.pumpAndSettle();
     expect(find.text('Café con Ana'), findsOneWidget);
+  });
+
+  testWidgets('Historial: deslizar elimina y "Deshacer" lo regresa', (
+    tester,
+  ) async {
+    final data = [...sampleMovements];
+    final movements = FakeMovementsRepository(() async => [...data])
+      ..data = data;
+    await tester.pumpWidget(appWith(movements));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.text('Café con Ana'), const Offset(-600, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Café con Ana'), findsNothing);
+    expect(find.text('"Café con Ana" eliminado'), findsOneWidget);
+    // La fila salió de la "base" (falsa), no solo de la pantalla.
+    expect(data, hasLength(5));
+    // Y los totales se recalcularon: 808.50 - 65.00.
+    expect(find.text('Gastos Q743.50 · Ingresos Q4,200.00'), findsOneWidget);
+
+    await tester.tap(find.text('Deshacer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Café con Ana'), findsOneWidget);
+    expect(data, hasLength(6));
   });
 }

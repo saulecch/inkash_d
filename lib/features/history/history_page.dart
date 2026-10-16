@@ -6,6 +6,7 @@ import '../../theme.dart';
 import '../../utils/dates.dart';
 import '../../utils/money.dart';
 import '../../utils/occurred_on.dart';
+import '../home/presentation/controllers/home_controller.dart';
 import '../home/presentation/widgets/movement_tile.dart';
 import 'history_controller.dart';
 
@@ -169,8 +170,59 @@ class _GroupedList extends StatelessWidget {
         );
         previousDay = day;
       }
-      rows.add(MovementTile(movement: m));
+      rows.add(_SwipeToDelete(movement: m));
     }
     return ListView(children: rows);
+  }
+}
+
+// S15-04: deslizar a la izquierda para borrar, con "Deshacer".
+class _SwipeToDelete extends ConsumerWidget {
+  const _SwipeToDelete({required this.movement});
+
+  final Movement movement;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Dismissible(
+      // La key debe ser el id: con el índice, al borrar la fila 2 la 3
+      // heredaría su key y Flutter confundiría las filas.
+      key: ValueKey(movement.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        color: kPeligro.withValues(alpha: .25),
+        child: const Icon(Icons.delete_outline, color: kPeligro),
+      ),
+      // confirmDismiss: PRIMERO borramos en SQLite. Si falla, devolvemos
+      // false y la fila regresa a su lugar (no "desaparece" en falso).
+      confirmDismiss: (_) async {
+        // Se toman antes del await: después, el context puede ya no estar.
+        final messenger = ScaffoldMessenger.of(context);
+        final controller = ref.read(homeControllerProvider.notifier);
+        try {
+          final deleted = await controller.deleteMovement(movement.id!);
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('"${movement.description}" eliminado'),
+              action: deleted == null
+                  ? null
+                  : SnackBarAction(
+                      label: 'Deshacer',
+                      onPressed: () => controller.undoDelete(deleted),
+                    ),
+            ),
+          );
+          return true;
+        } catch (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('No se pudo eliminar.')),
+          );
+          return false;
+        }
+      },
+      child: MovementTile(movement: movement),
+    );
   }
 }

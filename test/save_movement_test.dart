@@ -194,6 +194,22 @@ void main() {
       expect([for (final c in used) c.name], ['Comida', 'Transporte']);
     });
 
+    test('delete devuelve la fila y restore la deja idéntica', () async {
+      final repository = MovementsRepository(database: database);
+      await repository.insertNew(await bus());
+      final db = await database.database;
+      final before = (await db.query('movements')).single;
+
+      final deleted = await repository.delete(before['id']! as int);
+      expect(await db.query('movements'), isEmpty);
+      expect(await repository.delete(999), isNull); // nada que deshacer
+
+      await repository.restore(deleted!);
+      // Mismo id, categoría, occurred_on, created_at_ms y monto:
+      // es EL mismo registro, no una copia.
+      expect((await db.query('movements')).single, before);
+    });
+
     test('categoría archivada: error y no se inserta nada', () async {
       final repository = MovementsRepository(database: database);
       final transporte = await categoryId('Transporte');

@@ -1,5 +1,6 @@
 import '../database/app_database.dart';
 import '../models/category.dart';
+import '../models/deleted_movement.dart';
 import '../models/month_totals.dart';
 import '../models/movement.dart';
 import '../models/new_movement.dart';
@@ -135,9 +136,26 @@ class MovementsRepository {
     );
   }
 
-  Future<void> delete(int id) async {
+  /// S15-04: borrar devuelve la fila borrada, para poder deshacer.
+  /// Leer + borrar en UNA transacción: nadie cambia la fila en medio.
+  Future<DeletedMovement?> delete(int id) async {
     final db = await _db.database;
-    await db.delete('movements', where: 'id = ?', whereArgs: [id]);
+    return db.transaction((txn) async {
+      final rows = await txn.query(
+        'movements',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (rows.isEmpty) return null; // ya no existía: nada que deshacer
+      await txn.delete('movements', where: 'id = ?', whereArgs: [id]);
+      return DeletedMovement(Map.of(rows.single));
+    });
+  }
+
+  /// Reinserta la fila idéntica (con su id original).
+  Future<void> restore(DeletedMovement deleted) async {
+    final db = await _db.database;
+    await db.insert('movements', deleted.row);
   }
 
   /// S15-02: gastos e ingresos del mes en UNA consulta: SUM + CASE.

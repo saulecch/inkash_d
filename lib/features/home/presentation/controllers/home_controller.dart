@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../models/deleted_movement.dart';
 import '../../../../models/home_summary.dart';
 import '../../../../models/movement_form_options.dart';
 import '../../../../models/new_movement.dart';
@@ -111,11 +112,28 @@ class HomeController extends AsyncNotifier<HomeSummary> {
   // error y conserva lo escrito) y NO se recarga nada.
   Future<void> saveMovement(NewMovement newMovement) async {
     await _movements.insertNew(newMovement);
-    // Volvemos a consultar SQLite en vez de hacer lista.add(...): la base es
-    // la única fuente de verdad (saldo, orden y totales salen de ahí).
+    await _refreshAll();
+  }
+
+  // S15-04: borrar y deshacer siguen la misma regla que guardar:
+  // escribir en SQLite y volver a consultar todo lo que depende de eso.
+  Future<DeletedMovement?> deleteMovement(int id) async {
+    final deleted = await _movements.delete(id);
+    await _refreshAll();
+    return deleted;
+  }
+
+  Future<void> undoDelete(DeletedMovement deleted) async {
+    await _movements.restore(deleted);
+    await _refreshAll();
+  }
+
+  // Volvemos a consultar SQLite en vez de hacer lista.add(...): la base es
+  // la única fuente de verdad (saldo, orden y totales salen de ahí).
+  // El Historial también muestra movimientos: si no lo invalidamos,
+  // seguiría con la lista vieja (y sin la categoría nueva).
+  Future<void> _refreshAll() async {
     ref.invalidateSelf();
-    // S15-03: el Historial también muestra movimientos. Si no lo
-    // invalidamos, seguiría con la lista vieja (y sin la categoría nueva).
     ref.invalidate(historyProvider);
     ref.invalidate(usedCategoriesProvider);
     await future;
