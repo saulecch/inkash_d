@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkash_d/app.dart';
+import 'package:inkash_d/features/budget/budget_provider.dart';
 import 'package:inkash_d/features/history/history_controller.dart';
 import 'package:inkash_d/features/home/presentation/controllers/exchange_rate_provider.dart';
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
@@ -13,6 +14,7 @@ import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_shee
 import 'package:inkash_d/models/account.dart';
 import 'package:inkash_d/models/account_balance.dart';
 import 'package:inkash_d/models/category.dart';
+import 'package:inkash_d/models/category_budget.dart';
 import 'package:inkash_d/models/deleted_movement.dart';
 import 'package:inkash_d/models/exchange_rate.dart';
 import 'package:inkash_d/models/month_totals.dart';
@@ -22,6 +24,7 @@ import 'package:inkash_d/models/new_movement.dart';
 import 'package:inkash_d/repositories/accounts_repository.dart';
 import 'package:inkash_d/repositories/budgets_repository.dart';
 import 'package:inkash_d/repositories/categories_repository.dart';
+import 'package:inkash_d/repositories/category_budgets_repository.dart';
 import 'package:inkash_d/repositories/movements_repository.dart';
 import 'package:inkash_d/repositories/savings_goals_repository.dart';
 import 'package:inkash_d/utils/clock.dart';
@@ -267,6 +270,34 @@ class FakeSavingsGoalsRepository extends SavingsGoalsRepository {
   Future<int> getActiveCount() async => 3;
 }
 
+// S16-02: presupuesto por categoría. Solo octubre tiene datos: así la
+// prueba confirma que la pestaña usa el reloj.
+class FakeCategoryBudgetsRepository extends CategoryBudgetsRepository {
+  final limits = <int, int?>{};
+
+  @override
+  Future<List<CategoryBudget>> getForMonth(DateTime month) async =>
+      month.year == 2026 && month.month == 10
+      ? [
+          CategoryBudget(
+            categoryId: 4,
+            name: 'Supermercado',
+            spentMinor: 60000,
+            limitMinor: limits[4] ?? 50000,
+          ),
+          const CategoryBudget(
+            categoryId: 6,
+            name: 'Servicios',
+            spentMinor: 42000,
+          ),
+        ]
+      : const [];
+
+  @override
+  Future<void> setLimit(int categoryId, int? limitMinor) async =>
+      limits[categoryId] = limitMinor;
+}
+
 List<Override> overridesWith(FakeMovementsRepository movements) => [
   // Override: en la prueba, cada provider entrega su repositorio falso.
   movementsRepositoryProvider.overrideWithValue(movements),
@@ -275,6 +306,9 @@ List<Override> overridesWith(FakeMovementsRepository movements) => [
   budgetsRepositoryProvider.overrideWithValue(FakeBudgetsRepository()),
   savingsGoalsRepositoryProvider.overrideWithValue(
     FakeSavingsGoalsRepository(),
+  ),
+  categoryBudgetsRepositoryProvider.overrideWithValue(
+    FakeCategoryBudgetsRepository(),
   ),
   // Reloj fijo: la prueba dice "Octubre 2026" hoy y dentro de un año.
   clockProvider.overrideWithValue(() => DateTime(2026, 10, 15, 9)),
@@ -391,11 +425,12 @@ void main() {
 
     // IndexedStack: las pestañas ocultas existen pero están "offstage",
     // y find las ignora por defecto.
-    expect(find.text('Próximamente'), findsNothing);
+    // S16-04: ya no quedan pantallas "Próximamente".
+    expect(find.text('Presupuesto · Octubre 2026'), findsNothing);
 
     await tester.tap(find.text('Presupuesto'));
     await tester.pumpAndSettle();
-    expect(find.text('Próximamente'), findsOneWidget);
+    expect(find.text('Presupuesto · Octubre 2026'), findsOneWidget);
 
     // "Agregar" es una acción: abre el formulario sobre la pestaña actual.
     await tester.tap(find.text('Agregar'));
@@ -591,5 +626,44 @@ void main() {
     await tester.tap(find.text('Deshacer'));
     await tester.pumpAndSettle();
     expect(data, hasLength(6));
+  });
+
+  testWidgets('Presupuesto: excedido, sin límite y definir un límite', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Presupuesto'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Presupuesto · Octubre 2026'), findsOneWidget);
+    expect(find.text('Q600.00 de Q500.00 · excedido'), findsOneWidget);
+    expect(find.text('Gastado Q420.00 · sin límite'), findsOneWidget);
+
+    // S16-04: resumen arriba (solo categorías con límite).
+    expect(find.text('Te pasaste por Q100.00'), findsOneWidget);
+    expect(find.text('Q600.00 de Q500.00 · 1 excedida'), findsOneWidget);
+
+    // Hoja inferior: el monto pasa por el mismo parser sin double.
+    await tester.tap(find.text('Supermercado'));
+    await tester.pumpAndSettle();
+    expect(find.text('500.00'), findsOneWidget); // límite actual
+    await tester.enterText(find.byType(TextField), '12.345');
+    await tester.pump();
+    expect(find.text('Mayor que 0 y hasta 2 decimales'), findsOneWidget);
+    final save = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Guardar'),
+    );
+    expect(save.onPressed, isNull); // inválido: no se puede guardar
+    await tester.enterText(find.byType(TextField), '700');
+    await tester.pump();
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+
+    // Se invalidó el provider: la fila ya no está excedida.
+    expect(find.text('Q600.00 de Q700.00'), findsNWidgets(2)); // fila + resumen
+    expect(find.text('Te quedan Q100.00'), findsOneWidget);
   });
 }

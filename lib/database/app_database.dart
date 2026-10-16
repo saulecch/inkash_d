@@ -23,6 +23,7 @@ class AppDatabase {
         4: _v4ExchangeRateCache,
         5: _v5UniqueAccountNames,
         6: _v6BaseCategoryIcons,
+        7: _v7CategoryBudgets,
       };
 
   // Subir la versión es la ÚNICA forma de cambiar el esquema en teléfonos
@@ -336,5 +337,20 @@ class AppDatabase {
         whereArgs: [name],
       );
     }
+  }
+
+  // v7 (S16-04): límite mensual POR CATEGORÍA. monthly_budgets (S10) es un
+  // solo límite para todo el mes y no alcanza para la pestaña Presupuesto.
+  // category_id es la llave primaria: UNA fila (un límite) por categoría.
+  // ON DELETE CASCADE: si se borra la categoría, su límite también.
+  static Future<void> _v7CategoryBudgets(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE category_budgets (
+        category_id INTEGER PRIMARY KEY
+          REFERENCES categories(id) ON DELETE CASCADE,
+        limit_minor INTEGER NOT NULL CHECK (limit_minor > 0),
+        updated_at_ms INTEGER NOT NULL
+      )
+    ''');
   }
 }

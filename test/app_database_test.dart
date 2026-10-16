@@ -31,7 +31,7 @@ void main() {
 
   // La prueba más importante de una migración: el usuario que ya tenía la
   // app (versión 3) actualiza y NO pierde sus movimientos.
-  test('migra de la versión 3 a la 4 sin perder datos', () async {
+  test('migra de la versión 3 a la actual sin perder datos', () async {
     final path = '${directory.path}/v3.db';
     // Esquema v3 tal como lo dejó S11 (solo las tablas que usa la prueba).
     final v3 = await databaseFactoryFfi.openDatabase(
@@ -101,6 +101,7 @@ void main() {
     ]);
     expect(await db.query('accounts'), hasLength(1)); // sin seed repetido
     expect(await db.query('exchange_rate_cache'), isEmpty);
+    expect(await db.query('category_budgets'), isEmpty); // v7
     await upgraded.close();
   });
 

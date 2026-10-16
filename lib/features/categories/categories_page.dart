@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/category.dart';
 import '../../theme.dart';
 import '../../widgets/app_icons.dart';
+import '../budget/budget_provider.dart';
 import '../history/history_controller.dart';
 import '../home/presentation/controllers/home_controller.dart';
 import 'categories_provider.dart';
@@ -114,6 +115,7 @@ Future<Category?> openCategoryForm(
     ref.invalidate(homeControllerProvider);
     ref.invalidate(historyProvider);
     ref.invalidate(usedCategoriesProvider);
+    ref.invalidate(categoryBudgetsProvider); // S16-04: filas del presupuesto
   }
 
   return showModalBottomSheet<Category>(

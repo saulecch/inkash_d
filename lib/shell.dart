@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/budget/budget_page.dart';
 import 'features/history/history_page.dart';
 import 'features/home/presentation/widgets/open_movement_form.dart';
 import 'features/navigation/navigation_controller.dart';
 import 'features/settings/settings_page.dart';
 import 'home.dart';
 import 'theme.dart';
-import 'widgets/coming_soon_page.dart';
 
 // S15-01: el "cascarón" de la app: la barra inferior y una pantalla por
 // pestaña. Antes la barra vivía dentro de HomePage, así que solo existía
@@ -37,7 +37,7 @@ class InkashShell extends ConsumerWidget {
         index: current.index,
         children: const [
           HomePage(),
-          ComingSoonPage(title: 'Presupuesto', icon: Icons.bar_chart),
+          BudgetPage(),
           HistoryPage(),
           SettingsPage(),
         ],
