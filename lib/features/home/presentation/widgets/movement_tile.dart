@@ -18,6 +18,9 @@ class MovementTile extends StatelessWidget {
     final isIncome = movement.amount >= 0;
     // decodeOccurredOn reemplaza el substring a mano que había en HomePage.
     final date = shortDate(decodeOccurredOn(movement.occurredOn));
+    // S16-01: 'Transporte · Efectivo'. Si no vinieron los nombres, la fecha.
+    final names = [?movement.categoryName, ?movement.accountName];
+    final subtitle = names.isEmpty ? date : names.join(' · ');
 
     return ListTile(
       leading: Container(
@@ -30,7 +33,7 @@ class MovementTile extends StatelessWidget {
         child: const Icon(Icons.receipt, color: kLima),
       ),
       title: Text(movement.description, style: const TextStyle(color: kTexto)),
-      subtitle: Text(date, style: const TextStyle(color: kMuted)),
+      subtitle: Text(subtitle, style: const TextStyle(color: kMuted)),
       trailing: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/accounts/accounts_page.dart';
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/exchange_rate_card.dart';
 import 'features/home/presentation/widgets/movement_tile.dart';
@@ -28,12 +29,16 @@ class HomePage extends ConsumerWidget {
             const Center(child: CircularProgressIndicator(color: kLima)),
         error: (error, _) =>
             _LoadError(onRetry: () => ref.invalidate(homeControllerProvider)),
-        data: (summary) => _buildDashboard(summary, ref),
+        data: (summary) => _buildDashboard(context, summary, ref),
       ),
     );
   }
 
-  Widget _buildDashboard(HomeSummary summary, WidgetRef ref) {
+  Widget _buildDashboard(
+    BuildContext context,
+    HomeSummary summary,
+    WidgetRef ref,
+  ) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -51,7 +56,7 @@ class HomePage extends ConsumerWidget {
         const SizedBox(height: 22),
         _buildBudgetSection(summary),
         const SizedBox(height: 22),
-        _buildHeroCards(summary),
+        _buildHeroCards(context, summary),
         const SizedBox(height: 12),
         // S14-03: dato remoto. Si falla, el resto del dashboard sigue vivo:
         // cada provider tiene su propio estado de carga y error.
@@ -130,13 +135,21 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeroCards(HomeSummary summary) {
+  Widget _buildHeroCards(BuildContext context, HomeSummary summary) {
     final goals = summary.activeGoals;
     final goalsText = '$goals activa${goals != 1 ? 's' : ''}';
 
     return Row(
       children: [
-        heroCard('Cuentas', summary.formatQuetzales(summary.totalBalanceMinor)),
+        // S16-01: el total ya era real (SUM en SQL); tocarlo abre la
+        // gestión de cuentas (Navigator.push: una pantalla encima).
+        heroCard(
+          'Cuentas',
+          summary.formatQuetzales(summary.totalBalanceMinor),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const AccountsPage())),
+        ),
         const SizedBox(width: 16),
         heroCard('Metas de ahorro', goalsText),
       ],
@@ -144,21 +157,25 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-Widget heroCard(String title, String content) {
+Widget heroCard(String title, String content, {VoidCallback? onTap}) {
   return Expanded(
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kSuperficie,
-        border: Border.all(color: kBorde),
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 14)),
-          Text(content, style: const TextStyle(fontSize: 20)),
-        ],
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: const BorderRadius.all(Radius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kSuperficie,
+          border: Border.all(color: kBorde),
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 14)),
+            Text(content, style: const TextStyle(fontSize: 20)),
+          ],
+        ),
       ),
     ),
   );

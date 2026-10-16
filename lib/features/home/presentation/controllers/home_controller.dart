@@ -10,6 +10,7 @@ import '../../../../repositories/categories_repository.dart';
 import '../../../../repositories/movements_repository.dart';
 import '../../../../repositories/savings_goals_repository.dart';
 import '../../../../utils/clock.dart';
+import '../../../accounts/account_balances_provider.dart';
 import '../../../history/history_controller.dart';
 
 // --- Providers de repositories (singletons) ---
@@ -136,6 +137,7 @@ class HomeController extends AsyncNotifier<HomeSummary> {
     ref.invalidateSelf();
     ref.invalidate(historyProvider);
     ref.invalidate(usedCategoriesProvider);
+    ref.invalidate(accountBalancesProvider); // S16-01: los saldos cambian
     await future;
   }
 }

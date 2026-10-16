@@ -11,3 +11,8 @@ String formatQuetzales(int minor) {
   );
   return 'Q$thousands.$decimals';
 }
+
+/// S16-01: centavos -> '500.00' para precargar un campo de texto, solo con
+/// enteros (lo inverso de parseAmountMinor). Sin 'Q' ni comas de miles.
+String amountInputText(int minor) =>
+    '${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')}';

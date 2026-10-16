@@ -11,6 +11,7 @@ nuevo que lo **reemplaza** ("Estado: Reemplazado por ADR-000X").
 | [0001](0001-sqlite-centavos-y-occurred-on.md) | SQLite, dinero en centavos enteros y `occurredOn` local de 17 dígitos | Aceptado |
 | [0002](0002-riverpod-asyncnotifier.md) | Estado asíncrono con Riverpod `AsyncNotifier` | Aceptado |
 | [0003](0003-api-tipo-cambio-con-cache.md) | Datos remotos: red primero, caché local si falla | Aceptado |
+| [0004](0004-migraciones-numeradas-y-saldo-por-cuenta.md) | Migraciones numeradas; saldo por cuenta con `LEFT JOIN` | Aceptado |
 
 ## Plantilla
 

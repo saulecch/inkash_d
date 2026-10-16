@@ -10,6 +10,11 @@ class Movement {
   final String? notes;
   final int createdAtMs;
 
+  // S16-01: nombres que llegan por JOIN al LEER (no son columnas de la
+  // tabla movements, por eso no van en toMap). null si no se pidieron.
+  final String? categoryName;
+  final String? accountName;
+
   const Movement({
     this.id,
     required this.accountId,
@@ -19,6 +24,8 @@ class Movement {
     required this.occurredOn,
     this.notes,
     required this.createdAtMs,
+    this.categoryName,
+    this.accountName,
   });
 
   Map<String, dynamic> toMap() {
@@ -44,6 +51,8 @@ class Movement {
       occurredOn: map['occurred_on'] as int,
       notes: map['notes'] as String?,
       createdAtMs: map['created_at_ms'] as int,
+      categoryName: map['category_name'] as String?,
+      accountName: map['account_name'] as String?,
     );
   }
 
@@ -66,6 +75,8 @@ class Movement {
       occurredOn: occurredOn ?? this.occurredOn,
       notes: notes ?? this.notes,
       createdAtMs: createdAtMs ?? this.createdAtMs,
+      categoryName: categoryName,
+      accountName: accountName,
     );
   }
 

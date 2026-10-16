@@ -16,14 +16,14 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  test('instalación nueva: versión 4 con la tabla de caché', () async {
+  test('instalación nueva: última versión con la tabla de caché', () async {
     final database = AppDatabase(
       factory: databaseFactoryFfi,
       path: '${directory.path}/nueva.db',
     );
     final db = await database.database;
 
-    expect(await db.getVersion(), 4);
+    expect(await db.getVersion(), AppDatabase.currentVersion);
     expect(await db.query('exchange_rate_cache'), isEmpty);
     expect(await db.query('accounts'), hasLength(1)); // seed 'Efectivo'
     await database.close();
@@ -85,7 +85,7 @@ void main() {
     final upgraded = AppDatabase(factory: databaseFactoryFfi, path: path);
     final db = await upgraded.database;
 
-    expect(await db.getVersion(), 4);
+    expect(await db.getVersion(), AppDatabase.currentVersion);
     // El movimiento sigue ahí, con sus formatos intactos.
     expect(await db.query('movements'), [
       {
@@ -101,6 +101,83 @@ void main() {
     ]);
     expect(await db.query('accounts'), hasLength(1)); // sin seed repetido
     expect(await db.query('exchange_rate_cache'), isEmpty);
+    await upgraded.close();
+  });
+
+  // S16-01: una base EXACTAMENTE como la dejaba la app en la versión 1
+  // (S10): amount_minor y occurred_on como texto ISO.
+  Future<String> createV1Database() async {
+    final path = '${directory.path}/v1.db';
+    final v1 = await databaseFactoryFfi.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, _) => AppDatabase.migrations[1]!(db),
+      ),
+    );
+    await v1.insert('accounts', {
+      'name': 'Mi efectivo',
+      'type': 'cash',
+      'created_at_ms': 1756900000000,
+    });
+    await v1.insert('movements', {
+      'account_id': 1,
+      'category_id': 3, // Transporte, del seed de v1
+      'amount_minor': -1250,
+      'description': 'Bus',
+      'occurred_on': '2026-09-03',
+      'created_at_ms': 1756900000000,
+    });
+    await v1.close();
+    return path;
+  }
+
+  test('migra de la versión 1 a la actual y convierte los datos', () async {
+    final upgraded = AppDatabase(
+      factory: databaseFactoryFfi,
+      path: await createV1Database(),
+    );
+    final db = await upgraded.database;
+
+    expect(await db.getVersion(), AppDatabase.currentVersion);
+    final row = (await db.query('movements')).single;
+    expect(row['amount'], -1250);
+    expect(row['occurred_on'], 20260903000000000); // texto -> 17 dígitos
+    // v3 no agrega "Efectivo" si el usuario ya tenía una cuenta.
+    expect(await db.query('accounts'), hasLength(1));
+    await upgraded.close();
+  });
+
+  // Si la instalación nueva y la actualización divergen, un usuario nuevo y
+  // uno viejo tendrían bases distintas. Esta prueba lo detecta.
+  test('instalación nueva y actualizada tienen el mismo esquema', () async {
+    Future<List<Object?>> schema(AppDatabase base) async {
+      final db = await base.database;
+      final objects = await db.rawQuery(
+        "SELECT type, name, tbl_name FROM sqlite_master "
+        "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name",
+      );
+      final columns = [
+        for (final table in objects.where((o) => o['type'] == 'table'))
+          for (final column in await db.rawQuery(
+            'PRAGMA table_info(${table['name']})',
+          ))
+            '${table['name']}.${column['name']} ${column['type']} '
+                'notnull=${column['notnull']} default=${column['dflt_value']}',
+      ];
+      return [...objects, ...columns];
+    }
+
+    final fresh = AppDatabase(
+      factory: databaseFactoryFfi,
+      path: '${directory.path}/nueva.db',
+    );
+    final upgraded = AppDatabase(
+      factory: databaseFactoryFfi,
+      path: await createV1Database(),
+    );
+    expect(await schema(upgraded), await schema(fresh));
+    await fresh.close();
     await upgraded.close();
   });
 }

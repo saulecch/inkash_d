@@ -11,6 +11,7 @@ import 'package:inkash_d/features/home/presentation/controllers/exchange_rate_pr
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
 import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'package:inkash_d/models/account.dart';
+import 'package:inkash_d/models/account_balance.dart';
 import 'package:inkash_d/models/category.dart';
 import 'package:inkash_d/models/deleted_movement.dart';
 import 'package:inkash_d/models/exchange_rate.dart';
@@ -43,6 +44,9 @@ Movement _mov(
   description: description,
   occurredOn: occurredOn,
   createdAtMs: 1760537700000,
+  // Lo que el repositorio real trae por JOIN.
+  categoryName: fakeCategories.firstWhere((c) => c.id == categoryId).name,
+  accountName: 'Efectivo',
 );
 
 // Las categorías del seed que usan los datos de prueba (orden por nombre).
@@ -156,6 +160,50 @@ class FakeAccountsRepository extends AccountsRepository {
   Future<List<Account>> getActive() async => const [
     Account(id: 1, name: 'Efectivo', type: 'cash', createdAtMs: 0),
   ];
+
+  // S16-01: tabla de cuentas en memoria (crear/editar desde la UI).
+  final balances = [
+    const AccountBalance(
+      id: 1,
+      name: 'Efectivo',
+      type: 'cash',
+      balanceMinor: 16200,
+    ),
+    const AccountBalance(
+      id: 2,
+      name: 'Banco',
+      type: 'bank',
+      balanceMinor: 400000,
+    ),
+  ];
+
+  @override
+  Future<List<AccountBalance>> getWithBalances() async => [...balances];
+
+  @override
+  Future<int> save({
+    int? id,
+    required String name,
+    required String type,
+    required int initialBalanceMinor,
+  }) async {
+    if (balances.any((a) => a.name == name.trim() && a.id != id)) {
+      throw AccountException('Ya existe una cuenta llamada "${name.trim()}".');
+    }
+    final newId = id ?? balances.length + 1;
+    balances
+      ..removeWhere((a) => a.id == newId)
+      ..add(
+        AccountBalance(
+          id: newId,
+          name: name.trim(),
+          type: type,
+          balanceMinor: initialBalanceMinor,
+          initialBalanceMinor: initialBalanceMinor,
+        ),
+      );
+    return newId;
+  }
 }
 
 class FakeCategoriesRepository extends CategoriesRepository {
@@ -226,6 +274,7 @@ void main() {
     // Saldo grande + tarjeta "Cuentas".
     expect(find.textContaining('Q4,162.00'), findsNWidgets(2));
     expect(find.text('Uber al trabajo'), findsOneWidget);
+    expect(find.text('Transporte · Efectivo'), findsOneWidget); // S16-01
     expect(find.text('3 activas'), findsOneWidget);
     expect(find.text('Dólar hoy · Q7.65'), findsOneWidget);
     // S15-02: el mes sale del reloj (fijo en la prueba).
@@ -401,5 +450,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Café con Ana'), findsOneWidget);
     expect(data, hasLength(6));
+  });
+
+  testWidgets('Cuentas: saldos por cuenta y crear una con deuda inicial', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cuentas'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'Efectivo'), findsOneWidget);
+    expect(find.text('Q4,000.00'), findsOneWidget); // Banco
+    expect(find.text('Q162.00'), findsOneWidget); // Efectivo
+
+    // S16-01: crear una tarjeta con deuda inicial desde la hoja.
+    await tester.tap(find.text('Nueva cuenta'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Banco');
+    await tester.tap(find.text('Tarjeta'));
+    await tester.tap(find.text('Debo'));
+    await tester.enterText(find.byType(TextField).last, '500');
+    await tester.pump();
+    await tester.tap(find.text('Crear cuenta'));
+    await tester.pumpAndSettle();
+    // Nombre repetido: la hoja sigue abierta con el mensaje.
+    expect(find.text('Ya existe una cuenta llamada "Banco".'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'Visa');
+    await tester.tap(find.text('Crear cuenta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Crear cuenta'), findsNothing); // se cerró
+    expect(find.text('Tarjeta · inicial −Q500.00'), findsOneWidget);
   });
 }

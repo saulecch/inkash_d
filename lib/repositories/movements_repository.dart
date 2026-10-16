@@ -51,23 +51,29 @@ class MovementsRepository {
     final args = <Object>[];
     if (month != null) {
       // Mismo rango medio abierto que getMonthTotals.
-      conditions.add('occurred_on >= ? AND occurred_on < ?');
+      conditions.add('m.occurred_on >= ? AND m.occurred_on < ?');
       args.addAll([
         encodeOccurredOn(monthStart(month)),
         encodeOccurredOn(nextMonthStart(month)),
       ]);
     }
     if (categoryId != null) {
-      conditions.add('category_id = ?');
+      conditions.add('m.category_id = ?');
       args.add(categoryId);
     }
     if (limit != null) args.add(limit); // el último `?` es el del LIMIT
 
     final db = await _db.database;
+    // S16-01: JOIN para mostrar "Categoría · Cuenta". Aquí JOIN normal
+    // basta: category_id y account_id son NOT NULL con FOREIGN KEY, así que
+    // todo movimiento tiene su pareja (a diferencia del saldo por cuenta).
     final maps = await db.rawQuery('''
-      SELECT * FROM movements
+      SELECT m.*, c.name AS category_name, a.name AS account_name
+      FROM movements m
+      JOIN categories c ON c.id = m.category_id
+      JOIN accounts a ON a.id = m.account_id
       ${conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}'}
-      ORDER BY occurred_on DESC, id DESC
+      ORDER BY m.occurred_on DESC, m.id DESC
       ${limit == null ? '' : 'LIMIT ?'}
     ''', args);
     return maps.map(Movement.fromMap).toList();
