@@ -1,4 +1,5 @@
 import '../database/app_database.dart';
+import '../models/category.dart';
 import '../models/month_totals.dart';
 import '../models/movement.dart';
 import '../models/new_movement.dart';
@@ -34,17 +35,54 @@ class MovementsRepository {
 
   // S15-02: el Inicio solo pide los últimos N. El número también es un
   // valor, así que va como `?` (db.query lo pegaría dentro del texto SQL).
-  Future<List<Movement>> getRecent(int limit) async {
+  Future<List<Movement>> getRecent(int limit) => getFiltered(limit: limit);
+
+  /// S15-03: una sola consulta para el Inicio y el Historial, con filtros
+  /// opcionales. El WHERE se arma con PIEZAS de texto fijo, pero los
+  /// VALORES (mes, categoría, límite) siempre van como `?`: nunca se
+  /// concatena lo que elige el usuario.
+  Future<List<Movement>> getFiltered({
+    DateTime? month,
+    int? categoryId,
+    int? limit,
+  }) async {
+    final conditions = <String>[];
+    final args = <Object>[];
+    if (month != null) {
+      // Mismo rango medio abierto que getMonthTotals.
+      conditions.add('occurred_on >= ? AND occurred_on < ?');
+      args.addAll([
+        encodeOccurredOn(monthStart(month)),
+        encodeOccurredOn(nextMonthStart(month)),
+      ]);
+    }
+    if (categoryId != null) {
+      conditions.add('category_id = ?');
+      args.add(categoryId);
+    }
+    if (limit != null) args.add(limit); // el último `?` es el del LIMIT
+
     final db = await _db.database;
-    final maps = await db.rawQuery(
-      '''
+    final maps = await db.rawQuery('''
       SELECT * FROM movements
+      ${conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}'}
       ORDER BY occurred_on DESC, id DESC
-      LIMIT ?
-    ''',
-      [limit],
-    );
+      ${limit == null ? '' : 'LIMIT ?'}
+    ''', args);
     return maps.map(Movement.fromMap).toList();
+  }
+
+  /// S15-03: las categorías que YA tienen movimientos (chips del filtro).
+  /// DISTINCT: una categoría con 50 movimientos aparece una sola vez.
+  Future<List<Category>> getUsedCategories() async {
+    final db = await _db.database;
+    final maps = await db.rawQuery('''
+      SELECT DISTINCT c.*
+      FROM categories c
+      JOIN movements m ON m.category_id = c.id
+      ORDER BY c.name
+    ''');
+    return maps.map(Category.fromMap).toList();
   }
 
   Future<Movement?> getById(int id) async {

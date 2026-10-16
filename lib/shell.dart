@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/history/history_page.dart';
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'features/navigation/navigation_controller.dart';
@@ -37,7 +38,7 @@ class InkashShell extends ConsumerWidget {
         children: const [
           HomePage(),
           ComingSoonPage(title: 'Presupuesto', icon: Icons.bar_chart),
-          ComingSoonPage(title: 'Historial', icon: Icons.list_alt),
+          HistoryPage(),
           ComingSoonPage(title: 'Ajustes', icon: Icons.settings),
         ],
       ),

@@ -1,3 +1,5 @@
+import '../utils/money.dart';
+
 class Movement {
   final int? id;
   final int accountId;
@@ -68,15 +70,5 @@ class Movement {
   }
 
   bool get isIngres => amount > 0;
-  String get amountFormatted => _formatQuetzales(amount.abs());
-
-  String _formatQuetzales(int centavos) {
-    final entero = centavos ~/ 100;
-    final decimales = (centavos % 100).toString().padLeft(2, '0');
-    final miles = entero.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    );
-    return 'Q$miles.$decimales';
-  }
+  String get amountFormatted => formatQuetzales(amount);
 }

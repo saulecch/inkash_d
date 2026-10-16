@@ -9,6 +9,7 @@ import '../../../../repositories/categories_repository.dart';
 import '../../../../repositories/movements_repository.dart';
 import '../../../../repositories/savings_goals_repository.dart';
 import '../../../../utils/clock.dart';
+import '../../../history/history_controller.dart';
 
 // --- Providers de repositories (singletons) ---
 // S14-02: además de compartir una instancia, permiten que las pruebas de
@@ -113,6 +114,10 @@ class HomeController extends AsyncNotifier<HomeSummary> {
     // Volvemos a consultar SQLite en vez de hacer lista.add(...): la base es
     // la única fuente de verdad (saldo, orden y totales salen de ahí).
     ref.invalidateSelf();
+    // S15-03: el Historial también muestra movimientos. Si no lo
+    // invalidamos, seguiría con la lista vieja (y sin la categoría nueva).
+    ref.invalidate(historyProvider);
+    ref.invalidate(usedCategoriesProvider);
     await future;
   }
 }

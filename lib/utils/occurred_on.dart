@@ -17,3 +17,19 @@ int encodeOccurredOn(DateTime date) {
       '${date.millisecond.toString().padLeft(3, '0')}';
   return int.parse(encoded);
 }
+
+/// S15-03: el camino de regreso, para agrupar y mostrar fechas.
+/// 20261015081503007 -> DateTime(2026, 10, 15, 8, 15, 3, 7) (hora local).
+DateTime decodeOccurredOn(int occurredOn) {
+  final value = occurredOn.toString().padLeft(17, '0');
+  int part(int start, int end) => int.parse(value.substring(start, end));
+  return DateTime(
+    part(0, 4),
+    part(4, 6),
+    part(6, 8),
+    part(8, 10),
+    part(10, 12),
+    part(12, 14),
+    part(14, 17),
+  );
+}

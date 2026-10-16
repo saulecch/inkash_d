@@ -45,6 +45,8 @@ void main() {
     final encoded = encodeOccurredOn(DateTime(2026, 10, 15, 8, 15, 3, 7));
     expect(encoded, 20261015081503007);
     expect(encoded.toString(), hasLength(17));
+    // S15-03: y de regreso, sin perder nada.
+    expect(decodeOccurredOn(encoded), DateTime(2026, 10, 15, 8, 15, 3, 7));
   });
 
   group('MovementsRepository.insertNew', () {
@@ -151,6 +153,45 @@ void main() {
         [for (final m in recent) m.occurredOn],
         [20261101000000000, 20261031235959999],
       );
+    });
+
+    test('getFiltered filtra por mes y categoría; categorías usadas', () async {
+      final repository = MovementsRepository(database: database);
+      final transporte = await categoryId('Transporte');
+      final comida = await categoryId('Comida');
+      Future<void> mov(String description, int category, DateTime at) =>
+          repository.insertNew(
+            NewMovement(
+              accountId: 1,
+              categoryId: category,
+              amountMinor: 100,
+              description: description,
+              occurredAt: at,
+            ),
+          );
+      await mov('Bus', transporte, DateTime(2026, 10, 2));
+      await mov('Almuerzo', comida, DateTime(2026, 10, 3));
+      await mov('Bus sept', transporte, DateTime(2026, 9, 28));
+
+      Future<List<String>> titles({DateTime? month, int? category}) async => [
+        for (final m in await repository.getFiltered(
+          month: month,
+          categoryId: category,
+        ))
+          m.description,
+      ];
+      expect(await titles(month: DateTime(2026, 10)), ['Almuerzo', 'Bus']);
+      expect(await titles(category: transporte), ['Bus', 'Bus sept']);
+      expect(await titles(month: DateTime(2026, 9), category: transporte), [
+        'Bus sept',
+      ]);
+      // Sin filtros: todos, el más reciente primero.
+      expect(await titles(), ['Almuerzo', 'Bus', 'Bus sept']);
+
+      // DISTINCT: Transporte tiene 2 movimientos pero sale una vez.
+      // Las categorías sin movimientos (Salario...) no salen.
+      final used = await repository.getUsedCategories();
+      expect([for (final c in used) c.name], ['Comida', 'Transporte']);
     });
 
     test('categoría archivada: error y no se inserta nada', () async {

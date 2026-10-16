@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/exchange_rate_card.dart';
+import 'features/home/presentation/widgets/movement_tile.dart';
 import 'features/navigation/navigation_controller.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
@@ -84,15 +85,8 @@ class HomePage extends ConsumerWidget {
               style: TextStyle(color: kMuted),
             ),
           ),
-        for (final mov in summary.recentMovements)
-          detailListTile(
-            Icons.receipt,
-            mov.description,
-            _formatDate(mov.occurredOn),
-            '${mov.amount >= 0 ? '+' : '−'} ${mov.amountFormatted}',
-            _formatDate(mov.occurredOn),
-            isIncome: mov.amount >= 0,
-          ),
+        for (final movement in summary.recentMovements)
+          MovementTile(movement: movement),
       ],
     );
   }
@@ -148,66 +142,6 @@ class HomePage extends ConsumerWidget {
       ],
     );
   }
-
-  String _formatDate(int encodedDate) {
-    try {
-      final value = encodedDate.toString();
-      if (value.length < 8) return value;
-      final day = int.parse(value.substring(6, 8));
-      final month = int.parse(value.substring(4, 6));
-      final months = [
-        '',
-        'Ene',
-        'Feb',
-        'Mar',
-        'Abr',
-        'May',
-        'Jun',
-        'Jul',
-        'Ago',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dic',
-      ];
-      return '$day ${months[month]}';
-    } catch (_) {
-      return encodedDate.toString();
-    }
-  }
-}
-
-Widget detailListTile(
-  IconData icon,
-  String title,
-  String subtitle,
-  String amount,
-  String date, {
-  bool isIncome = false,
-}) {
-  return ListTile(
-    leading: Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: kIconoFondo,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Icon(icon, color: kLima),
-    ),
-    title: Text(title, style: const TextStyle(color: kTexto)),
-    subtitle: Text(subtitle, style: const TextStyle(color: kMuted)),
-    trailing: Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          amount,
-          style: TextStyle(fontSize: 13, color: isIncome ? kLima : kTexto),
-        ),
-        Text(date, style: const TextStyle(fontSize: 10, color: kMuted)),
-      ],
-    ),
-  );
 }
 
 Widget heroCard(String title, String content) {

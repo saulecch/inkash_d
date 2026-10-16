@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkash_d/app.dart';
+import 'package:inkash_d/features/history/history_controller.dart';
 import 'package:inkash_d/features/home/presentation/controllers/exchange_rate_provider.dart';
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
 import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_sheet.dart';
@@ -43,6 +44,15 @@ Movement _mov(
   createdAtMs: 1760537700000,
 );
 
+// Las categorías del seed que usan los datos de prueba (orden por nombre).
+const fakeCategories = [
+  Category(id: 7, name: 'Entretenimiento', classification: 'expense'),
+  Category(id: 1, name: 'Salario', classification: 'income'),
+  Category(id: 6, name: 'Servicios', classification: 'expense'),
+  Category(id: 4, name: 'Supermercado', classification: 'expense'),
+  Category(id: 3, name: 'Transporte', classification: 'expense'),
+];
+
 final sampleMovements = [
   _mov(6, 'Uber al trabajo', 3, -3800, 20261015081500000),
   _mov(5, 'Súper La Torre', 4, -28550, 20261014120000000),
@@ -68,15 +78,39 @@ class FakeMovementsRepository extends MovementsRepository {
     return (await recent()).take(limit).toList();
   }
 
+  static bool _inMonth(Movement m, DateTime month) =>
+      m.occurredOn >= encodeOccurredOn(monthStart(month)) &&
+      m.occurredOn < encodeOccurredOn(nextMonthStart(month));
+
+  // Imita los filtros del real sobre la lista en memoria.
+  @override
+  Future<List<Movement>> getFiltered({
+    DateTime? month,
+    int? categoryId,
+    int? limit,
+  }) async {
+    var list = await recent();
+    if (month != null) list = list.where((m) => _inMonth(m, month)).toList();
+    if (categoryId != null) {
+      list = list.where((m) => m.categoryId == categoryId).toList();
+    }
+    return limit == null ? list : list.take(limit).toList();
+  }
+
+  @override
+  Future<List<Category>> getUsedCategories() async {
+    final used = {for (final m in await recent()) m.categoryId};
+    return [
+      for (final category in fakeCategories)
+        if (used.contains(category.id)) category,
+    ];
+  }
+
   // En el falso sumamos en Dart; en el real lo hace SQLite (ver la prueba
   // de SQL en save_movement_test.dart).
   @override
   Future<MonthTotals> getMonthTotals(DateTime month) async {
-    final from = encodeOccurredOn(monthStart(month));
-    final to = encodeOccurredOn(nextMonthStart(month));
-    final inMonth = (await recent()).where(
-      (m) => m.occurredOn >= from && m.occurredOn < to,
-    );
+    final inMonth = (await recent()).where((m) => _inMonth(m, month));
     int sum(bool income) => inMonth
         .where((m) => (m.amount > 0) == income)
         .fold(0, (total, m) => total + m.amount.abs());
@@ -108,9 +142,7 @@ class FakeAccountsRepository extends AccountsRepository {
 
 class FakeCategoriesRepository extends CategoriesRepository {
   @override
-  Future<List<Category>> getAll() async => const [
-    Category(id: 3, name: 'Transporte', classification: 'expense'),
-  ];
+  Future<List<Category>> getAll() async => fakeCategories;
 }
 
 // Solo octubre tiene presupuesto: si el reloj no se usara, no habría.
@@ -222,6 +254,7 @@ void main() {
       (await container.read(homeControllerProvider.future)).recentMovements,
       isEmpty,
     );
+    expect(await container.read(historyProvider.future), isEmpty);
 
     await container
         .read(homeControllerProvider.notifier)
@@ -238,6 +271,9 @@ void main() {
     final summary = container.read(homeControllerProvider).requireValue;
     expect(summary.recentMovements.single.description, 'Bus demo');
     expect(movements.recentCalls, 2); // se leyó de nuevo, no lista.add
+    // S15-03: guardar también invalida el Historial (si no, seguiría vacío).
+    final history = await container.read(historyProvider.future);
+    expect(history.single.description, 'Bus demo');
   });
 
   testWidgets('la barra cambia de pestaña y "Ver todo" abre Historial', (
@@ -267,7 +303,58 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ver todo'));
     await tester.pumpAndSettle();
-    expect(find.text('Historial'), findsNWidgets(2)); // barra + pantalla
-    expect(find.text('Próximamente'), findsOneWidget);
+    expect(find.byTooltip('Mes anterior'), findsOneWidget);
+  });
+
+  testWidgets('Historial: filtra por categoría y cambia de mes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+
+    // Octubre: la renta de septiembre no aparece. Encabezados por día.
+    expect(find.text('Octubre 2026'), findsOneWidget);
+    expect(find.text('Café con Ana'), findsOneWidget);
+    expect(find.text('Renta septiembre'), findsNothing);
+    expect(find.text('Mié 14 Oct'), findsOneWidget); // 3 movimientos, 1 título
+    expect(find.text('Gastos Q808.50 · Ingresos Q4,200.00'), findsOneWidget);
+
+    // Filtro por categoría: el provider se vuelve a ejecutar solo.
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Entretenimiento'));
+    await tester.pumpAndSettle();
+    expect(find.text('Café con Ana'), findsOneWidget);
+    expect(find.text('Uber al trabajo'), findsNothing);
+    expect(find.text('Gastos Q65.00 · Ingresos Q0.00'), findsOneWidget);
+
+    // Volver a "Todas" y pasar a septiembre.
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Todas'));
+    await tester.tap(find.byTooltip('Mes anterior'));
+    await tester.pumpAndSettle();
+    expect(find.text('Septiembre 2026'), findsOneWidget);
+    expect(find.text('Renta septiembre'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Mes anterior'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sin movimientos en este mes.'), findsOneWidget);
+  });
+
+  testWidgets('Historial: error -> Reintentar -> datos', (tester) async {
+    final movements = FakeMovementsRepository(
+      () async => throw Exception('disco lleno'),
+    );
+    await tester.pumpWidget(appWith(movements));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Historial'));
+    await tester.pumpAndSettle();
+    expect(find.text('No pudimos leer el historial.'), findsOneWidget);
+
+    movements.recent = () async => sampleMovements;
+    await tester.tap(find.text('Reintentar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Café con Ana'), findsOneWidget);
   });
 }
