@@ -8,12 +8,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inkash_d/app.dart';
 import 'package:inkash_d/features/home/presentation/controllers/exchange_rate_provider.dart';
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
+import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_sheet.dart';
+import 'package:inkash_d/models/account.dart';
+import 'package:inkash_d/models/category.dart';
 import 'package:inkash_d/models/exchange_rate.dart';
 import 'package:inkash_d/models/monthly_budget.dart';
 import 'package:inkash_d/models/movement.dart';
 import 'package:inkash_d/models/new_movement.dart';
 import 'package:inkash_d/repositories/accounts_repository.dart';
 import 'package:inkash_d/repositories/budgets_repository.dart';
+import 'package:inkash_d/repositories/categories_repository.dart';
 import 'package:inkash_d/repositories/movements_repository.dart';
 import 'package:inkash_d/repositories/savings_goals_repository.dart';
 
@@ -73,6 +77,18 @@ class FakeMovementsRepository extends MovementsRepository {
 class FakeAccountsRepository extends AccountsRepository {
   @override
   Future<int> getTotalBalance() async => 416200;
+
+  @override
+  Future<List<Account>> getActive() async => const [
+    Account(id: 1, name: 'Efectivo', type: 'cash', createdAtMs: 0),
+  ];
+}
+
+class FakeCategoriesRepository extends CategoriesRepository {
+  @override
+  Future<List<Category>> getAll() async => const [
+    Category(id: 3, name: 'Transporte', classification: 'expense'),
+  ];
 }
 
 class FakeBudgetsRepository extends BudgetsRepository {
@@ -89,6 +105,7 @@ List<Override> overridesWith(FakeMovementsRepository movements) => [
   // Override: en la prueba, cada provider entrega su repositorio falso.
   movementsRepositoryProvider.overrideWithValue(movements),
   accountsRepositoryProvider.overrideWithValue(FakeAccountsRepository()),
+  categoriesRepositoryProvider.overrideWithValue(FakeCategoriesRepository()),
   budgetsRepositoryProvider.overrideWithValue(FakeBudgetsRepository()),
   savingsGoalsRepositoryProvider.overrideWithValue(
     FakeSavingsGoalsRepository(),
@@ -181,5 +198,36 @@ void main() {
     final summary = container.read(homeControllerProvider).requireValue;
     expect(summary.recentMovements.single.description, 'Bus demo');
     expect(movements.recentCalls, 2); // se leyó de nuevo, no lista.add
+  });
+
+  testWidgets('la barra cambia de pestaña y "Ver todo" abre Historial', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+
+    // IndexedStack: las pestañas ocultas existen pero están "offstage",
+    // y find las ignora por defecto.
+    expect(find.text('Próximamente'), findsNothing);
+
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Próximamente'), findsOneWidget);
+
+    // "Agregar" es una acción: abre el formulario sobre la pestaña actual.
+    await tester.tap(find.text('Agregar'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MovementBottomSheet), findsOneWidget);
+    Navigator.of(tester.element(find.byType(MovementBottomSheet))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver todo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Historial'), findsNWidgets(2)); // barra + pantalla
+    expect(find.text('Próximamente'), findsOneWidget);
   });
 }

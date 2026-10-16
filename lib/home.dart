@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/exchange_rate_card.dart';
-import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
+import 'features/navigation/navigation_controller.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
 
@@ -17,23 +17,21 @@ class HomePage extends ConsumerWidget {
     // watch: cuando el estado cambie, este build se vuelve a ejecutar.
     final summary = ref.watch(homeControllerProvider);
 
-    return Scaffold(
-      body: SafeArea(
-        // Los estados de una consulta asíncrona, explícitos y sin if anidados.
-        // Al recargar (tras guardar) se siguen viendo los datos anteriores.
-        child: summary.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator(color: kLima)),
-          error: (error, _) =>
-              _LoadError(onRetry: () => ref.invalidate(homeControllerProvider)),
-          data: _buildDashboard,
-        ),
+    // S15-01: ya no es un Scaffold. La barra inferior vive en InkashShell.
+    return SafeArea(
+      // Los estados de una consulta asíncrona, explícitos y sin if anidados.
+      // Al recargar (tras guardar) se siguen viendo los datos anteriores.
+      child: summary.when(
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: kLima)),
+        error: (error, _) =>
+            _LoadError(onRetry: () => ref.invalidate(homeControllerProvider)),
+        data: (summary) => _buildDashboard(summary, ref),
       ),
-      bottomNavigationBar: _buildBottomBar(context, ref),
     );
   }
 
-  Widget _buildDashboard(HomeSummary summary) {
+  Widget _buildDashboard(HomeSummary summary, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -61,7 +59,9 @@ class HomePage extends ConsumerWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             TextButton(
-              onPressed: () {},
+              // Navegar = cambiar el estado de la pestaña activa.
+              onPressed: () =>
+                  ref.read(navigationProvider.notifier).goTo(AppTab.history),
               child: const Text(
                 'Ver todo',
                 style: TextStyle(fontSize: 13, color: kLima),
@@ -88,44 +88,6 @@ class HomePage extends ConsumerWidget {
             _formatDate(mov.occurredOn),
             isIncome: mov.amount >= 0,
           ),
-      ],
-    );
-  }
-
-  Widget _buildBottomBar(BuildContext context, WidgetRef ref) {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      selectedItemColor: kLima,
-      type: BottomNavigationBarType.fixed,
-      onTap: (index) async {
-        if (index != 2) return;
-        // read (no watch): en un callback solo queremos llamar un método.
-        final controller = ref.read(homeControllerProvider.notifier);
-        // El sheet devuelve true con Navigator.pop(true) si guardó.
-        final saved = await showMovementBottomSheet(
-          context: context,
-          loadOptions: controller.loadFormOptions,
-          onSave: controller.saveMovement,
-        );
-        if (saved != true || !context.mounted) return;
-        // El controller ya reconsultó SQLite; la lista se actualiza sola
-        // porque HomePage hace ref.watch.
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Movimiento guardado')));
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.bar_chart),
-          label: 'Presupuesto',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.add_circle, size: 34),
-          label: 'Agregar',
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Historial'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
       ],
     );
   }
