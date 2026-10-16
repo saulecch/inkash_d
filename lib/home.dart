@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/accounts/accounts_page.dart';
+import 'features/goals/goals_page.dart';
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/exchange_rate_card.dart';
 import 'features/home/presentation/widgets/movement_tile.dart';
@@ -155,7 +156,15 @@ class HomePage extends ConsumerWidget {
           ).push(MaterialPageRoute<void>(builder: (_) => const AccountsPage())),
         ),
         const SizedBox(width: 16),
-        heroCard('Metas de ahorro', goalsText),
+        // S16-05: Navigator.push abre la pantalla de metas ENCIMA de las
+        // pestañas (con flecha para volver), no cambia de pestaña.
+        heroCard(
+          'Metas de ahorro',
+          goalsText,
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const GoalsPage())),
+        ),
       ],
     );
   }

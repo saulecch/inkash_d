@@ -21,6 +21,7 @@ import 'package:inkash_d/models/month_totals.dart';
 import 'package:inkash_d/models/monthly_budget.dart';
 import 'package:inkash_d/models/movement.dart';
 import 'package:inkash_d/models/new_movement.dart';
+import 'package:inkash_d/models/savings_goal.dart';
 import 'package:inkash_d/repositories/accounts_repository.dart';
 import 'package:inkash_d/repositories/budgets_repository.dart';
 import 'package:inkash_d/repositories/categories_repository.dart';
@@ -266,8 +267,31 @@ class FakeBudgetsRepository extends BudgetsRepository {
 }
 
 class FakeSavingsGoalsRepository extends SavingsGoalsRepository {
+  // S16-05: lo que la UI pidió hacer (en memoria).
+  final calls = <String>[];
+
   @override
   Future<int> getActiveCount() async => 3;
+
+  @override
+  Future<void> edit(int goalId, String name, int targetAmountMinor) async =>
+      calls.add('edit $goalId $name $targetAmountMinor');
+
+  @override
+  Future<void> contribute(int goalId, int amountMinor) async =>
+      calls.add('contribute $goalId $amountMinor');
+
+  // S16-05: lo que muestra la pantalla de metas.
+  @override
+  Future<List<SavingsGoal>> getActive() async => const [
+    SavingsGoal(
+      id: 1,
+      name: 'Viaje a Tikal',
+      targetAmountMinor: 200000,
+      savedAmountMinor: 50000,
+      createdAtMs: 0,
+    ),
+  ];
 }
 
 // S16-02: presupuesto por categoría. Solo octubre tiene datos: así la
@@ -665,5 +689,52 @@ void main() {
     // Se invalidó el provider: la fila ya no está excedida.
     expect(find.text('Q600.00 de Q700.00'), findsNWidgets(2)); // fila + resumen
     expect(find.text('Te quedan Q100.00'), findsOneWidget);
+  });
+
+  testWidgets('tarjeta de metas: abre la pantalla con Navigator.push', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+
+    // Navigator.push: la pantalla se abre ENCIMA, con flecha para volver.
+    await tester.tap(find.text('3 activas'));
+    await tester.pumpAndSettle();
+    expect(find.text('Viaje a Tikal'), findsOneWidget);
+    expect(find.text('Q500.00 de Q2,000.00'), findsOneWidget);
+    expect(find.byType(BottomNavigationBar), findsNothing); // tapada
+
+    // S16-05: aportar con la hoja de monto.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(InkashApp)),
+    );
+    final goals =
+        container.read(savingsGoalsRepositoryProvider)
+            as FakeSavingsGoalsRepository;
+    await tester.tap(find.text('Viaje a Tikal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Llevas Q500.00 de Q2,000.00.'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '100');
+    await tester.pump();
+    await tester.tap(find.text('Aportar'));
+    await tester.pumpAndSettle();
+
+    // Editar nombre y objetivo (lo ahorrado no se toca).
+    await tester.tap(find.byTooltip('Editar meta'));
+    await tester.pumpAndSettle();
+    expect(find.text('2000.00'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).first, 'Tikal 2027');
+    await tester.enterText(find.byType(TextField).last, '3000');
+    await tester.pump();
+    await tester.tap(find.text('Guardar cambios'));
+    await tester.pumpAndSettle();
+    expect(goals.calls, ['contribute 1 10000', 'edit 1 Tikal 2027 300000']);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Viaje a Tikal'), findsNothing);
+    expect(find.byType(BottomNavigationBar), findsOneWidget);
   });
 }

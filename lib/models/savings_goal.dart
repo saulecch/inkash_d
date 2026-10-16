@@ -61,7 +61,9 @@ class SavingsGoal {
     );
   }
 
-  bool get isActive => !isArchived && savedAmountMinor < targetAmountMinor;
+  bool get isCompleted => savedAmountMinor >= targetAmountMinor;
+
+  bool get isActive => !isArchived && !isCompleted;
 
   double get progress {
     if (targetAmountMinor == 0) return 0;
