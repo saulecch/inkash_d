@@ -12,6 +12,7 @@ nuevo que lo **reemplaza** ("Estado: Reemplazado por ADR-000X").
 | [0002](0002-riverpod-asyncnotifier.md) | Estado asíncrono con Riverpod `AsyncNotifier` | Aceptado |
 | [0003](0003-api-tipo-cambio-con-cache.md) | Datos remotos: red primero, caché local si falla | Aceptado |
 | [0004](0004-migraciones-numeradas-y-saldo-por-cuenta.md) | Migraciones numeradas; saldo por cuenta con `LEFT JOIN` | Aceptado |
+| [0005](0005-publicacion-prueba-interna.md) | Publicar por prueba interna con release automatizado | Aceptado |
 
 ## Plantilla
 
