@@ -13,6 +13,7 @@ import '../../../../utils/clock.dart';
 import '../../../accounts/account_balances_provider.dart';
 import '../../../budget/budget_provider.dart';
 import '../../../history/history_controller.dart';
+import '../../../settings/settings_controller.dart';
 
 // --- Providers de repositories (singletons) ---
 // S14-02: además de compartir una instancia, permiten que las pruebas de
@@ -60,7 +61,6 @@ class HomeController extends AsyncNotifier<HomeSummary> {
   CategoriesRepository get _categories =>
       ref.read(categoriesRepositoryProvider);
   MovementsRepository get _movements => ref.read(movementsRepositoryProvider);
-  BudgetsRepository get _budgets => ref.read(budgetsRepositoryProvider);
   SavingsGoalsRepository get _goals => ref.read(savingsGoalsRepositoryProvider);
 
   // S15-02: el Inicio muestra solo los últimos N movimientos.
@@ -73,21 +73,16 @@ class HomeController extends AsyncNotifier<HomeSummary> {
   Future<HomeSummary> build() async {
     // S15-02: la fecha viene del reloj inyectable, no de DateTime.now().
     final today = ref.read(clockProvider)();
-    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
+    // S17-02: watch (no read) de Ajustes. Si el usuario cambia su nombre o
+    // su límite, este build se vuelve a ejecutar solo.
+    final settings = await ref.watch(settingsProvider.future);
 
     // Consultas independientes EN PARALELO con un record + .wait.
     // A diferencia de Future.wait([...]), cada resultado conserva su tipo:
     // ya no hay results[0] as int. Si una falla, build falla (AsyncError).
-    final (
-      totalBalance,
-      monthTotals,
-      monthlyBudget,
-      activeGoals,
-      recent,
-    ) = await (
+    final (totalBalance, monthTotals, activeGoals, recent) = await (
       _accounts.getTotalBalance(),
       _movements.getMonthTotals(today),
-      _budgets.getByMonth('$yearMonth-01').then((b) => b?.limitMinor ?? 0),
       _goals.getActiveCount(),
       _movements.getRecent(recentCount),
     ).wait;
@@ -96,9 +91,10 @@ class HomeController extends AsyncNotifier<HomeSummary> {
       month: today,
       totalBalanceMinor: totalBalance,
       monthTotals: monthTotals,
-      monthlyBudgetMinor: monthlyBudget,
+      monthlyBudgetMinor: settings.monthlyLimitMinor,
       activeGoals: activeGoals,
       recentMovements: recent,
+      greeting: settings.greeting,
     );
   }
 

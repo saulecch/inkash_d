@@ -9,6 +9,8 @@ class HomeSummary {
   final MonthTotals monthTotals;
   final int monthlyBudgetMinor;
   final int activeGoals;
+  // S17-02: 'Hola, Ana'. Viene de Ajustes.
+  final String greeting;
   final List<Movement> recentMovements;
 
   const HomeSummary({
@@ -18,6 +20,7 @@ class HomeSummary {
     required this.monthlyBudgetMinor,
     required this.activeGoals,
     required this.recentMovements,
+    this.greeting = 'Hola',
   });
 
   int get monthlySpentMinor => monthTotals.expensesMinor;

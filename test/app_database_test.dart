@@ -102,6 +102,7 @@ void main() {
     expect(await db.query('accounts'), hasLength(1)); // sin seed repetido
     expect(await db.query('exchange_rate_cache'), isEmpty);
     expect(await db.query('category_budgets'), isEmpty); // v7
+    expect(await db.query('app_settings'), isEmpty); // v8
     await upgraded.close();
   });
 

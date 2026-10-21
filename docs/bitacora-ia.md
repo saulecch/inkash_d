@@ -17,6 +17,58 @@ qué especificaste, qué revisaste y qué rechazaste.
 
 ---
 
+## 2026-10-21 · @saulecch (docente) — S15 a S17 en la sección D (y por qué se rehicieron S16 y S17)
+
+- **Herramienta:** Claude (asistente de código).
+- **Especificación:** "Replicar en inkash_d los pasos de inkash (`s15-01` … `s17-07`),
+  adaptados a lo que D ya tiene. Un commit por tema; `dart format`, `flutter analyze` y
+  `flutter test` en verde antes de cada commit; solo local."
+- **Por qué se rehicieron S16 y S17:** la primera versión pasaba todas las pruebas, pero
+  al usar la app el docente encontró que **no se podía terminar el trabajo real**: no había
+  forma de crear categorías ni cuentas, el saldo inicial no tenía pantalla, los movimientos
+  y las metas no se podían editar y los diálogos eran `AlertDialog` sueltos. Lección: una
+  prueba verde dice que el código hace lo que la prueba pregunta, no que la app esté
+  completa. Las ramas viejas quedaron como `respaldo/s16-v1` y `respaldo/s17-v1`.
+- **Aceptado:** totales del mes con `SUM + CASE` sobre el rango de `occurred_on` (17
+  dígitos); migraciones como mapa `versión -> función` con la v1 **real** de S10
+  (recuperada de git); saldo inicial como movimiento 'Saldo inicial' guardado en la misma
+  transacción que la cuenta; `LEFT JOIN` con el filtro del mes en el `ON`; `UPDATE`
+  atómico en metas; sistema de diseño con tokens y componentes; Ajustes que el Inicio
+  observa con `ref.watch`.
+- **Rechazado / corregido durante el trabajo:**
+  - **Ciclo de providers.** "Borrar todos mis datos" invalidaba el Inicio desde
+    `SettingsController`, pero el Inicio hace `ref.watch(settingsProvider)`: la prueba
+    falló con `CircularDependencyError`. Se quitó esa línea; `invalidateSelf()` ya
+    recalcula el Inicio.
+  - **Revisión visual (s17-01).** Las pruebas pasaban, pero al dibujar las pantallas a PNG
+    se vio que todo el texto secundario salía blanco (`TextTheme.apply` pisa el color de
+    `bodySmall`), una sombra negra sobre la barra inferior y un aro negro alrededor del
+    botón flotante. Se corrigió en el tema. La prueba de captura no se versiona.
+  - **Avisos en fila.** Al editar y luego borrar, el SnackBar "Movimiento eliminado"
+    esperaba detrás de "Cambios guardados" (la prueba no lo encontraba). Ahora se cierra el
+    aviso anterior antes de mostrar el nuevo.
+  - **Pruebas que dependían del tamaño de pantalla.** Con SnackBar flotante y la barra
+    inferior, algunas filas quedaban tapadas en la pantalla de prueba de 800×600; se cerró
+    el aviso o se usó una pantalla de teléfono en esa prueba.
+  - **Valor `null` en `whereArgs` (s16-03).** sqflite avisó que no acepta `null` como
+    argumento; la consulta se arma según haya o no movimiento que editar.
+  - **Prueba que dependía del orden (s16-01).** La prueba de saldos tomaba `first` como
+    "Efectivo", pero el seed usa `DateTime.now()` y queda al final. Se busca por nombre.
+  - **Archivo temporal en la suite (s16-01).** La prueba de volcado del esquema (para
+    comparar antes/después del mapa de migraciones) se coló en la suite completa; se borró
+    antes del commit y nunca entró al historial.
+  - **Verificación por mutación sin `git checkout`.** Para comprobar que una prueba no
+    pasa en falso se quitó la línea que prueba y se restauró desde una **copia**, aplicando
+    la lección del incidente de `git checkout --` registrado en S14.
+  - **Decisiones para no inventar datos:** sin columna de saldo inicial ni cuentas
+    sembradas (ADR-0004); el límite mensual usa `monthly_budgets` (ya existía) en vez de
+    duplicarlo en la tabla de ajustes.
+- **Pendiente / no verificado:** no se abrió la app en un dispositivo (se usaría la base
+  real); el CI de release no se ha corrido en GitHub.
+- **Verificación:** `flutter analyze` sin observaciones y `flutter test` en verde en cada
+  commit; capturas PNG revisadas a ojo; la firma del AAB se comprueba con
+  `keytool -printcert` en s17-05.
+
 ## 2026-10-15 · @saulecch (docente) — preparación de S14 para la sección D
 
 - **Herramienta:** Claude (asistente de código).

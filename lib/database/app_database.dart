@@ -24,6 +24,7 @@ class AppDatabase {
         5: _v5UniqueAccountNames,
         6: _v6BaseCategoryIcons,
         7: _v7CategoryBudgets,
+        8: _v8AppSettings,
       };
 
   // Subir la versión es la ÚNICA forma de cambiar el esquema en teléfonos
@@ -350,6 +351,19 @@ class AppDatabase {
           REFERENCES categories(id) ON DELETE CASCADE,
         limit_minor INTEGER NOT NULL CHECK (limit_minor > 0),
         updated_at_ms INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  // v8 (S17-02): ajustes del usuario como pares clave -> valor (hoy solo el
+  // nombre). Sirve para pocos datos sueltos; NO para listas ni para datos
+  // que se filtran o suman. El límite mensual NO va aquí: ya tiene su tabla
+  // (monthly_budgets, v1).
+  static Future<void> _v8AppSettings(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE app_settings (
+        key TEXT NOT NULL PRIMARY KEY,
+        value TEXT NOT NULL
       )
     ''');
   }

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inkash_d/app.dart';
 import 'package:inkash_d/features/budget/budget_provider.dart';
 import 'package:inkash_d/features/history/history_controller.dart';
+import 'package:inkash_d/features/settings/settings_controller.dart';
 import 'package:inkash_d/features/home/presentation/controllers/exchange_rate_provider.dart';
 import 'package:inkash_d/features/home/presentation/controllers/home_controller.dart';
 import 'package:inkash_d/features/home/presentation/widgets/movement_bottom_sheet.dart';
@@ -28,6 +29,7 @@ import 'package:inkash_d/repositories/categories_repository.dart';
 import 'package:inkash_d/repositories/category_budgets_repository.dart';
 import 'package:inkash_d/repositories/movements_repository.dart';
 import 'package:inkash_d/repositories/savings_goals_repository.dart';
+import 'package:inkash_d/repositories/settings_repository.dart';
 import 'package:inkash_d/utils/clock.dart';
 import 'package:inkash_d/utils/dates.dart';
 import 'package:inkash_d/utils/occurred_on.dart';
@@ -275,16 +277,38 @@ class FakeCategoriesRepository extends CategoriesRepository {
 }
 
 // Solo octubre tiene presupuesto: si el reloj no se usara, no habría.
+// S17-02: Ajustes lo cambia con upsert (en memoria).
 class FakeBudgetsRepository extends BudgetsRepository {
+  final budgets = <String, MonthlyBudget>{
+    '2026-10-01': const MonthlyBudget(
+      monthStart: '2026-10-01',
+      limitMinor: 650000,
+      createdAtMs: 0,
+    ),
+  };
+
   @override
-  Future<MonthlyBudget?> getByMonth(String monthStart) async =>
-      monthStart == '2026-10-01'
-      ? const MonthlyBudget(
-          monthStart: '2026-10-01',
-          limitMinor: 650000,
-          createdAtMs: 0,
-        )
-      : null;
+  Future<MonthlyBudget?> getLatestUpTo(String monthStart) async =>
+      budgets[monthStart];
+
+  @override
+  Future<void> upsert(MonthlyBudget budget) async =>
+      budgets[budget.monthStart] = budget;
+}
+
+// S17-02: ajustes en memoria.
+class FakeSettingsRepository extends SettingsRepository {
+  var userName = 'Kevin';
+  var deleteAllCalls = 0;
+
+  @override
+  Future<String> getUserName() async => userName;
+
+  @override
+  Future<void> setUserName(String name) async => userName = name.trim();
+
+  @override
+  Future<void> deleteAllUserData() async => deleteAllCalls++;
 }
 
 class FakeSavingsGoalsRepository extends SavingsGoalsRepository {
@@ -351,6 +375,7 @@ List<Override> overridesWith(FakeMovementsRepository movements) => [
   accountsRepositoryProvider.overrideWithValue(FakeAccountsRepository()),
   categoriesRepositoryProvider.overrideWithValue(FakeCategoriesRepository()),
   budgetsRepositoryProvider.overrideWithValue(FakeBudgetsRepository()),
+  settingsRepositoryProvider.overrideWithValue(FakeSettingsRepository()),
   savingsGoalsRepositoryProvider.overrideWithValue(
     FakeSavingsGoalsRepository(),
   ),
@@ -776,5 +801,81 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Viaje a Tikal'), findsNothing);
     expect(find.byType(BottomNavigationBar), findsOneWidget);
+  });
+
+  testWidgets('Ajustes: cambiar nombre y límite actualiza el Inicio', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Hola, Kevin'), findsOneWidget);
+    expect(find.text('Has usado Q808.50 de Q6,500.00'), findsOneWidget);
+
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    // Perfil: hoja de texto (dueña de su controller).
+    await tester.tap(find.text('Kevin'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Cómo te llamas?'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Ana');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ana'), findsOneWidget);
+
+    await tester.tap(find.text('Límite mensual'));
+    await tester.pumpAndSettle();
+    expect(find.text('6500.00'), findsOneWidget); // precargado, sin double
+    await tester.enterText(find.byType(TextField), '7000');
+    await tester.pump();
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Q7,000.00'), findsOneWidget);
+
+    // El Inicio NO conoce a Ajustes: hace ref.watch(settingsProvider).
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hola, Ana'), findsOneWidget);
+    expect(find.text('Has usado Q808.50 de Q7,000.00'), findsOneWidget);
+  });
+
+  testWidgets('Ajustes: borrar datos pide confirmación y recarga todo', (
+    tester,
+  ) async {
+    // Pantalla de teléfono (360x800): en la de 800x600 la fila queda debajo
+    // de la barra inferior.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final movements = FakeMovementsRepository(() async => sampleMovements);
+    await tester.pumpWidget(appWith(movements));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(InkashApp)),
+    );
+    final settings =
+        container.read(settingsRepositoryProvider) as FakeSettingsRepository;
+    final callsBefore = movements.recentCalls;
+
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    // Cancelar no borra nada.
+    await tester.tap(find.text('Borrar todos mis datos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(settings.deleteAllCalls, 0);
+
+    await tester.tap(find.text('Borrar todos mis datos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Borrar todo'));
+    await tester.pumpAndSettle();
+    expect(settings.deleteAllCalls, 1);
+    expect(find.text('Datos borrados'), findsOneWidget);
+    // El Inicio se volvió a consultar (invalidate explícito).
+    expect(movements.recentCalls, greaterThan(callsBefore));
   });
 }

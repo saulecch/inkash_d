@@ -62,7 +62,8 @@ class HomePage extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Hola, Kevin', style: text.titleMedium),
+            // S17-02: el nombre sale de Ajustes, no 'Hola, Kevin' a mano.
+            Text(summary.greeting, style: text.titleMedium),
             // S15-02: el mes real, no 'Julio 2026' escrito a mano.
             Text(monthName(summary.month), style: text.bodySmall),
           ],
@@ -154,7 +155,10 @@ class _MonthHero extends StatelessWidget {
           const SizedBox(height: Spacing.xs),
           MoneyText(spent, style: text.displayLarge),
           const SizedBox(height: Spacing.s),
-          Text('Aún no tienes un límite mensual.', style: text.bodySmall),
+          Text(
+            'Aún no tienes un límite mensual: defínelo en Ajustes.',
+            style: text.bodySmall,
+          ),
         ],
       );
     }
