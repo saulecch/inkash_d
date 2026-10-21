@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../database/app_database.dart';
 import '../models/category.dart';
 import '../models/deleted_movement.dart';
@@ -69,6 +71,7 @@ class MovementsRepository {
     // todo movimiento tiene su pareja (a diferencia del saldo por cuenta).
     final maps = await db.rawQuery('''
       SELECT m.*, c.name AS category_name, c.icon_key AS category_icon,
+             c.classification AS category_classification,
              a.name AS account_name
       FROM movements m
       JOIN categories c ON c.id = m.category_id
@@ -111,36 +114,68 @@ class MovementsRepository {
   Future<int> insertNew(NewMovement newMovement) async {
     final db = await _db.database;
     return db.transaction((txn) async {
-      final rows = await txn.query(
-        'categories',
-        columns: ['classification'],
-        where: 'id = ? AND is_archived = 0', // Siempre con ?, nunca concatenar.
-        whereArgs: [newMovement.categoryId],
-      );
-      if (rows.isEmpty) {
-        throw StateError('La categoría ya no está disponible.');
-      }
-      // El gasto se guarda NEGATIVO: así SUM(amount) es el saldo.
-      // La fuente de verdad del signo es la categoría, no la pantalla.
-      final isExpense = rows.single['classification'] == 'expense';
+      final signedAmount = await _signedAmount(txn, newMovement);
       final movement = newMovement.toMovement(
-        signedAmount: isExpense
-            ? -newMovement.amountMinor
-            : newMovement.amountMinor,
+        signedAmount: signedAmount,
         createdAtMs: DateTime.now().millisecondsSinceEpoch,
       );
       return txn.insert('movements', movement.toMap());
     });
   }
 
-  Future<void> update(Movement movement) async {
+  /// S16-03: editar = UPDATE de la MISMA fila (mismo id). El orden del
+  /// historial y "Deshacer" siguen funcionando. created_at_ms (cuándo se
+  /// registró) NO cambia; occurred_on (cuándo pasó) sí puede cambiar.
+  /// Igual que al crear, el signo lo decide la categoría, en la misma
+  /// transacción.
+  Future<void> edit(int id, NewMovement newMovement) async {
     final db = await _db.database;
-    await db.update(
-      'movements',
-      movement.toMap(),
-      where: 'id = ?',
-      whereArgs: [movement.id],
+    await db.transaction((txn) async {
+      final signedAmount = await _signedAmount(
+        txn,
+        newMovement,
+        // Al editar se acepta su categoría actual aunque ya esté archivada.
+        editingId: id,
+      );
+      final changed = await txn.update(
+        'movements',
+        {
+          'account_id': newMovement.accountId,
+          'category_id': newMovement.categoryId,
+          'amount': signedAmount,
+          'description': newMovement.description,
+          'occurred_on': encodeOccurredOn(newMovement.occurredAt),
+          'notes': newMovement.notes,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (changed == 0) throw StateError('El movimiento ya no existe.');
+    });
+  }
+
+  // El gasto se guarda NEGATIVO: así SUM(amount) es el saldo.
+  // La fuente de verdad del signo es la categoría, no la pantalla.
+  Future<int> _signedAmount(
+    Transaction txn,
+    NewMovement newMovement, {
+    int? editingId,
+  }) async {
+    final rows = await txn.query(
+      'categories',
+      columns: ['classification'],
+      // Siempre con ?, nunca concatenar.
+      where: editingId == null
+          ? 'id = ? AND is_archived = 0'
+          : 'id = ? AND (is_archived = 0 OR id = '
+                '(SELECT category_id FROM movements WHERE id = ?))',
+      whereArgs: [newMovement.categoryId, ?editingId],
     );
+    if (rows.isEmpty) {
+      throw StateError('La categoría ya no está disponible.');
+    }
+    final isExpense = rows.single['classification'] == 'expense';
+    return isExpense ? -newMovement.amountMinor : newMovement.amountMinor;
   }
 
   /// S15-04: borrar devuelve la fila borrada, para poder deshacer.

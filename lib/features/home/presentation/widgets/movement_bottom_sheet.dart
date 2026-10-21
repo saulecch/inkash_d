@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../../../../models/account.dart';
 import '../../../../models/category.dart';
+import '../../../../models/movement.dart';
 import '../../../../models/movement_form_options.dart';
 import '../../../../models/new_movement.dart';
 import '../../../../theme.dart';
+import '../../../../utils/money.dart';
+import '../../../../utils/occurred_on.dart';
 import '../../../../utils/parse_amount.dart';
 import '../../../../widgets/app_icons.dart';
 
 // S14-01: el sheet ya no recibe el controller completo, solo dos funciones.
 // No sabe que existen SQLite ni los repositorios, y en las pruebas se le
 // pasan funciones falsas.
-Future<bool?> showMovementBottomSheet({
+// S16-03: devuelve 'saved' o 'deleted' (o null si se cerró sin cambios).
+Future<String?> showMovementBottomSheet({
   required BuildContext context,
   required Future<MovementFormOptions> Function() loadOptions,
   required Future<void> Function(NewMovement newMovement) onSave,
   Future<Category?> Function(String classification)? onNewCategory,
+  Movement? initial,
+  Future<void> Function()? onDelete,
 }) {
-  return showModalBottomSheet<bool>(
+  return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -30,6 +36,8 @@ Future<bool?> showMovementBottomSheet({
       loadOptions: loadOptions,
       onSave: onSave,
       onNewCategory: onNewCategory,
+      initial: initial,
+      onDelete: onDelete,
     ),
   );
 }
@@ -39,8 +47,15 @@ class MovementBottomSheet extends StatefulWidget {
     required this.loadOptions,
     required this.onSave,
     this.onNewCategory,
+    this.initial,
+    this.onDelete,
     super.key,
   });
+
+  // S16-03: con `initial`, el MISMO formulario sirve para editar.
+  // Reutilizarlo evita que "crear" y "editar" validen distinto.
+  final Movement? initial;
+  final Future<void> Function()? onDelete;
 
   final Future<MovementFormOptions> Function() loadOptions;
   final Future<void> Function(NewMovement newMovement) onSave;
@@ -73,13 +88,27 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
   List<Category> get _availableCategories => _categories
       .where(
         (category) =>
-            !category.isArchived && category.classification == _classification,
+            // Al editar, su categoría actual se muestra aunque esté archivada.
+            (!category.isArchived ||
+                category.id == widget.initial?.categoryId) &&
+            category.classification == _classification,
       )
       .toList();
 
   @override
   void initState() {
     super.initState();
+    final m = widget.initial;
+    if (m != null) {
+      // Centavos -> texto SIN double: -1250 -> "12.50" (el signo lo pone
+      // la categoría al guardar, igual que al crear).
+      _amountController.text = amountInputText(m.amount.abs());
+      _descriptionController.text = m.description;
+      _notesController.text = m.notes ?? '';
+      _occurredOn = decodeOccurredOn(m.occurredOn);
+      _classification =
+          m.categoryClassification ?? (m.amount > 0 ? 'income' : 'expense');
+    }
     _loadOptions();
   }
 
@@ -99,8 +128,10 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
       setState(() {
         _accounts = options.accounts;
         _categories = options.categories;
-        _accountId = options.accounts.firstOrNull?.id;
-        _categoryId = _availableCategories.firstOrNull?.id;
+        _accountId =
+            widget.initial?.accountId ?? options.accounts.firstOrNull?.id;
+        _categoryId =
+            widget.initial?.categoryId ?? _availableCategories.firstOrNull?.id;
         _loading = false;
       });
     } catch (_) {
@@ -178,7 +209,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
         ),
       );
       // Después de un await la pantalla pudo cerrarse: siempre preguntar.
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop('saved');
     } catch (_) {
       // El formulario conserva lo escrito para que el usuario reintente.
       if (!mounted) return;
@@ -214,10 +245,15 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
             const SizedBox(height: 20),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Nuevo movimiento',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                    widget.initial == null
+                        ? 'Nuevo movimiento'
+                        : 'Editar movimiento',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -405,11 +441,31 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                         ),
                       ],
                     )
-                  : const Text(
-                      'Guardar movimiento',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                  : Text(
+                      widget.initial == null
+                          ? 'Guardar movimiento'
+                          : 'Guardar cambios',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
             ),
+            // S16-03: borrar también desde aquí (en escritorio deslizar en
+            // el Historial no es obvio). El Deshacer lo muestra quien abrió.
+            if (widget.onDelete != null) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _saving
+                    ? null
+                    : () async {
+                        await widget.onDelete!();
+                        if (context.mounted) {
+                          Navigator.of(context).pop('deleted');
+                        }
+                      },
+                style: TextButton.styleFrom(foregroundColor: kPeligro),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Eliminar movimiento'),
+              ),
+            ],
           ],
         ),
       ),

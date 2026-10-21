@@ -8,6 +8,7 @@ import '../../utils/money.dart';
 import '../../utils/occurred_on.dart';
 import '../home/presentation/controllers/home_controller.dart';
 import '../home/presentation/widgets/movement_tile.dart';
+import '../home/presentation/widgets/open_movement_form.dart';
 import 'history_controller.dart';
 
 // S15-03: la pestaña Historial. Solo pinta: el filtro vive en
@@ -222,7 +223,10 @@ class _SwipeToDelete extends ConsumerWidget {
           return false;
         }
       },
-      child: MovementTile(movement: movement),
+      child: MovementTile(
+        movement: movement,
+        onTap: () => openMovementForm(context, ref, edit: movement),
+      ),
     );
   }
 }

@@ -210,6 +210,68 @@ void main() {
       expect((await db.query('movements')).single, before);
     });
 
+    test(
+      'edit: misma fila, mismo created_at_ms y signo por categoría',
+      () async {
+        final repository = MovementsRepository(database: database);
+        final id = await repository.insertNew(await bus());
+        final db = await database.database;
+        final before = (await db.query('movements')).single;
+
+        // Cambiar a una categoría de INGRESO: el signo lo pone la categoría.
+        await repository.edit(
+          id,
+          NewMovement(
+            accountId: 1,
+            categoryId: await categoryId('Ingreso extra'),
+            amountMinor: 9900,
+            description: 'Venta',
+            occurredAt: DateTime(2026, 10, 16, 9, 30),
+          ),
+        );
+        final after = (await db.query('movements')).single;
+        expect(after['id'], before['id']);
+        expect(
+          after['created_at_ms'],
+          before['created_at_ms'],
+        ); // epoch intacto
+        expect(after['occurred_on'], 20261016093000000); // local, 17 dígitos
+        expect(after['amount'], 9900);
+        expect(after['description'], 'Venta');
+
+        // Su categoría actual archivada SÍ se acepta al editar...
+        final extra = await categoryId('Ingreso extra');
+        await db.update(
+          'categories',
+          {'is_archived': 1},
+          where: 'id = ?',
+          whereArgs: [extra],
+        );
+        await repository.edit(
+          id,
+          NewMovement(
+            accountId: 1,
+            categoryId: extra,
+            amountMinor: 100,
+            description: 'Venta',
+            occurredAt: DateTime(2026, 10, 16),
+          ),
+        );
+        // ...pero no pasarse a OTRA categoría archivada.
+        final transporte = await categoryId('Transporte');
+        await db.update(
+          'categories',
+          {'is_archived': 1},
+          where: 'id = ?',
+          whereArgs: [transporte],
+        );
+        await expectLater(
+          repository.edit(id, await bus()),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
+
     test('categoría archivada: error y no se inserta nada', () async {
       final repository = MovementsRepository(database: database);
       final transporte = await categoryId('Transporte');

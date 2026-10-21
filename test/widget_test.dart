@@ -46,6 +46,9 @@ Movement _mov(
   createdAtMs: 1760537700000,
   // Lo que el repositorio real trae por JOIN.
   categoryName: fakeCategories.firstWhere((c) => c.id == categoryId).name,
+  categoryClassification: fakeCategories
+      .firstWhere((c) => c.id == categoryId)
+      .classification,
   accountName: 'Efectivo',
 );
 
@@ -137,6 +140,19 @@ class FakeMovementsRepository extends MovementsRepository {
     data!
       ..add(Movement.fromMap(deleted.row))
       ..sort((a, b) => b.occurredOn.compareTo(a.occurredOn));
+  }
+
+  // S16-03: editar sobre la lista en memoria (solo si la prueba la usa).
+  final edits = <int, NewMovement>{};
+
+  @override
+  Future<void> edit(int id, NewMovement newMovement) async {
+    edits[id] = newMovement;
+    final index = data!.indexWhere((m) => m.id == id);
+    data![index] = data![index].copyWith(
+      description: newMovement.description,
+      amount: -newMovement.amountMinor,
+    );
   }
 
   @override
@@ -531,5 +547,49 @@ void main() {
     await tester.tap(find.text('Crear categoría'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, 'Mascotas'), findsOneWidget);
+  });
+
+  testWidgets('tocar un movimiento abre el MISMO formulario para editar', (
+    tester,
+  ) async {
+    final data = [...sampleMovements];
+    final movements = FakeMovementsRepository(() async => [...data])
+      ..data = data;
+    await tester.pumpWidget(appWith(movements));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Uber al trabajo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Editar movimiento'), findsOneWidget);
+    expect(find.text('38.00'), findsOneWidget); // centavos -> texto, sin double
+    final chip = tester.widget<ChoiceChip>(
+      find.widgetWithText(ChoiceChip, 'Transporte'),
+    );
+    expect(chip.selected, isTrue);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Uber al trabajo'),
+      'Uber a la U',
+    );
+    await tester.ensureVisible(find.text('Guardar cambios'));
+    await tester.tap(find.text('Guardar cambios'));
+    await tester.pumpAndSettle();
+
+    expect(movements.edits[6]!.description, 'Uber a la U');
+    expect(movements.edits[6]!.amountMinor, 3800);
+    expect(find.text('Cambios guardados'), findsOneWidget);
+    expect(find.text('Uber a la U'), findsOneWidget); // se reconsultó
+
+    // Eliminar desde el formulario, con Deshacer.
+    await tester.tap(find.text('Uber a la U'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Eliminar movimiento'));
+    await tester.tap(find.text('Eliminar movimiento'));
+    await tester.pumpAndSettle();
+    expect(data, hasLength(5));
+    expect(find.text('Movimiento eliminado'), findsOneWidget);
+    await tester.tap(find.text('Deshacer'));
+    await tester.pumpAndSettle();
+    expect(data, hasLength(6));
   });
 }

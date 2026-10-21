@@ -16,6 +16,9 @@ class Movement {
   final String? accountName;
   // S16-02: el icono de la categoría (catálogo app_icons), también por JOIN.
   final String? categoryIconKey;
+  // S16-03: 'expense' / 'income' / 'adjustment', para abrir el formulario
+  // en el tipo correcto (y no editar ahí el 'Saldo inicial').
+  final String? categoryClassification;
 
   const Movement({
     this.id,
@@ -29,6 +32,7 @@ class Movement {
     this.categoryName,
     this.accountName,
     this.categoryIconKey,
+    this.categoryClassification,
   });
 
   Map<String, dynamic> toMap() {
@@ -57,6 +61,7 @@ class Movement {
       categoryName: map['category_name'] as String?,
       accountName: map['account_name'] as String?,
       categoryIconKey: map['category_icon'] as String?,
+      categoryClassification: map['category_classification'] as String?,
     );
   }
 
@@ -82,6 +87,7 @@ class Movement {
       categoryName: categoryName,
       accountName: accountName,
       categoryIconKey: categoryIconKey,
+      categoryClassification: categoryClassification,
     );
   }
 

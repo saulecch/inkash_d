@@ -10,9 +10,10 @@ import '../../../../widgets/app_icons.dart';
 // parámetros sueltos. Ahora la usan el Inicio y el Historial: un widget
 // reutilizable que recibe el Movement y decide cómo mostrarlo.
 class MovementTile extends StatelessWidget {
-  const MovementTile({required this.movement, super.key});
+  const MovementTile({required this.movement, this.onTap, super.key});
 
   final Movement movement;
+  final VoidCallback? onTap; // S16-03: tocar = editar
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +25,7 @@ class MovementTile extends StatelessWidget {
     final subtitle = names.isEmpty ? date : names.join(' · ');
 
     return ListTile(
+      onTap: onTap,
       leading: Container(
         width: 40,
         height: 40,

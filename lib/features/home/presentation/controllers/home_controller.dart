@@ -116,6 +116,12 @@ class HomeController extends AsyncNotifier<HomeSummary> {
     await _refreshAll();
   }
 
+  // S16-03: editar sigue la misma regla: escribir y reconsultar.
+  Future<void> editMovement(int id, NewMovement newMovement) async {
+    await _movements.edit(id, newMovement);
+    await _refreshAll();
+  }
+
   // S15-04: borrar y deshacer siguen la misma regla que guardar:
   // escribir en SQLite y volver a consultar todo lo que depende de eso.
   Future<DeletedMovement?> deleteMovement(int id) async {

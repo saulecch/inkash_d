@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/categories/categories_page.dart';
 import 'features/history/history_page.dart';
-import 'features/home/presentation/controllers/home_controller.dart';
-import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
+import 'features/home/presentation/widgets/open_movement_form.dart';
 import 'features/navigation/navigation_controller.dart';
 import 'features/settings/settings_page.dart';
 import 'home.dart';
@@ -52,7 +50,7 @@ class InkashShell extends ConsumerWidget {
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
           if (index == _addIndex) {
-            _addMovement(context, ref);
+            openMovementForm(context, ref); // S16-03: helper compartido
             return;
           }
           ref.read(navigationProvider.notifier).goTo(_tabsByIndex[index]!);
@@ -75,27 +73,5 @@ class InkashShell extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  // Movido sin cambios desde HomePage: ahora se puede agregar desde
-  // cualquier pestaña.
-  Future<void> _addMovement(BuildContext context, WidgetRef ref) async {
-    // read (no watch): en un callback solo queremos llamar un método.
-    final controller = ref.read(homeControllerProvider.notifier);
-    // El sheet devuelve true con Navigator.pop(true) si guardó.
-    final saved = await showMovementBottomSheet(
-      context: context,
-      loadOptions: controller.loadFormOptions,
-      onSave: controller.saveMovement,
-      // S16-02: "+ Nueva" abre la hoja de categoría encima del formulario.
-      onNewCategory: (classification) =>
-          openCategoryForm(context, ref, initialClassification: classification),
-    );
-    if (saved != true || !context.mounted) return;
-    // El controller ya reconsultó SQLite; las pantallas se actualizan solas
-    // porque hacen ref.watch.
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Movimiento guardado')));
   }
 }

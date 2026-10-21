@@ -5,6 +5,7 @@ import 'features/accounts/accounts_page.dart';
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/exchange_rate_card.dart';
 import 'features/home/presentation/widgets/movement_tile.dart';
+import 'features/home/presentation/widgets/open_movement_form.dart';
 import 'features/navigation/navigation_controller.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
@@ -91,7 +92,10 @@ class HomePage extends ConsumerWidget {
             ),
           ),
         for (final movement in summary.recentMovements)
-          MovementTile(movement: movement),
+          MovementTile(
+            movement: movement,
+            onTap: () => openMovementForm(context, ref, edit: movement),
+          ),
       ],
     );
   }
