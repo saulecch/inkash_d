@@ -34,3 +34,22 @@ Sin `key.properties` el release se firma con la llave de **debug** (así
 | Play: *"Version code 1 has already been used"* | No subiste el `+N` de `version` en `pubspec.yaml` |
 | `Keystore was tampered with, or password was incorrect` | Contraseña equivocada en `key.properties` |
 | Alguien subió el `.jks` a GitHub | **Rotar la llave** (Play Console → App integrity) y borrarlo del historial |
+
+## En CI (S17-06): release con un tag
+1. Cargar en *Settings → Secrets and variables → Actions*:
+   | Secret | Valor |
+   |---|---|
+   | `ANDROID_KEYSTORE_BASE64` | `base64 -i ~/inkash-d-upload.jks \| pbcopy` (macOS) o `base64 -w0 inkash-d-upload.jks` (Linux) |
+   | `ANDROID_KEYSTORE_PASSWORD` | contraseña del keystore |
+   | `ANDROID_KEY_PASSWORD` | contraseña de la llave |
+   | `ANDROID_KEY_ALIAS` | `upload` |
+2. Subir `version` en `pubspec.yaml` (p. ej. `0.9.0+2`) por PR.
+3. En `main` actualizado: `git tag v0.9.0 && git push origin v0.9.0`.
+4. El workflow **Release** (`.github/workflows/release.yml`) verifica que el tag
+   coincida con el pubspec, corre las pruebas, compila, **rechaza un AAB firmado con
+   debug** y adjunta el AAB a un GitHub Release.
+
+Los secretos no aparecen en los logs (GitHub los enmascara) y **no** están disponibles
+en PRs que vienen de forks.
+
+> Ojo: los tags `s14-…`/`s17-…` del curso **no** disparan el release; solo `v*`.
