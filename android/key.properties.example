@@ -1,0 +1,11 @@
+# S17-05: plantilla. Copiar como android/key.properties (NO se sube a Git)
+# y llenar con los datos del keystore de SUBIDA (upload key).
+#
+# Crear el keystore UNA vez (guárdalo fuera del repo y con respaldo):
+#   keytool -genkey -v -keystore ~/inkash-d-upload.jks -keyalg RSA \
+#     -keysize 2048 -validity 10000 -alias upload
+#
+storePassword=CAMBIAR
+keyPassword=CAMBIAR
+keyAlias=upload
+storeFile=/ruta/absoluta/inkash-d-upload.jks
