@@ -22,6 +22,7 @@ class AppDatabase {
         3: _v3DefaultAccount,
         4: _v4ExchangeRateCache,
         5: _v5UniqueAccountNames,
+        6: _v6BaseCategoryIcons,
       };
 
   // Subir la versión es la ÚNICA forma de cambiar el esquema en teléfonos
@@ -308,5 +309,32 @@ class AppDatabase {
       CREATE UNIQUE INDEX idx_accounts_name_unique
       ON accounts(name COLLATE NOCASE)
     ''');
+  }
+
+  // v6 (S16-02): las categorías ya se administran (y se ven) con icono.
+  // D ya tenía classification, is_archived e icon_key desde la v1: no hace
+  // falta cambiar el esquema, solo los DATOS de las categorías base, que se
+  // sembraron sin icono. Los nombres van escritos aquí (foto del pasado).
+  // "AND icon_key IS NULL": si el usuario ya eligió uno, no se pisa.
+  static Future<void> _v6BaseCategoryIcons(DatabaseExecutor db) async {
+    const icons = {
+      'Salario': 'work',
+      'Ingreso extra': 'arrow_upward',
+      'Transporte': 'directions_bus',
+      'Supermercado': 'shopping_cart',
+      'Comida': 'restaurant',
+      'Servicios': 'bolt',
+      'Entretenimiento': 'movie',
+      'Higiene': 'soap',
+      'Saldo inicial': 'savings',
+    };
+    for (final MapEntry(key: name, value: icon) in icons.entries) {
+      await db.update(
+        'categories',
+        {'icon_key': icon},
+        where: 'name = ? AND icon_key IS NULL',
+        whereArgs: [name],
+      );
+    }
   }
 }

@@ -232,8 +232,9 @@ void main() {
   group('MovementBottomSheet', () {
     Future<void> pumpSheet(
       WidgetTester tester,
-      Future<void> Function(NewMovement) onSave,
-    ) async {
+      Future<void> Function(NewMovement) onSave, {
+      Future<Category?> Function(String classification)? onNewCategory,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -254,9 +255,17 @@ void main() {
                     name: 'Transporte',
                     classification: 'expense',
                   ),
+                  Category(id: 1, name: 'Salario', classification: 'income'),
+                  Category(
+                    id: 9,
+                    name: 'Comida',
+                    classification: 'expense',
+                    isArchived: true,
+                  ),
                 ],
               ),
               onSave: onSave,
+              onNewCategory: onNewCategory,
             ),
           ),
         ),
@@ -326,6 +335,43 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('12.50'), findsOneWidget);
+    });
+
+    testWidgets('solo ofrece categorías activas del tipo elegido', (
+      tester,
+    ) async {
+      await pumpSheet(tester, (_) async {});
+      expect(find.widgetWithText(ChoiceChip, 'Transporte'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Salario'), findsNothing);
+      expect(find.text('Comida'), findsNothing); // archivada
+
+      await tester.tap(find.text('Ingreso'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ChoiceChip, 'Salario'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Transporte'), findsNothing);
+    });
+
+    testWidgets('"+ Nueva" crea la categoría y la deja seleccionada', (
+      tester,
+    ) async {
+      NewMovement? saved;
+      await pumpSheet(
+        tester,
+        (newMovement) async => saved = newMovement,
+        onNewCategory: (classification) async =>
+            Category(id: 42, name: 'Mascotas', classification: classification),
+      );
+      await tester.tap(find.text('Nueva'));
+      await tester.pumpAndSettle();
+      final chip = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'Mascotas'),
+      );
+      expect(chip.selected, isTrue);
+
+      await fillForm(tester, '50');
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(saved!.categoryId, 42);
     });
   });
 }

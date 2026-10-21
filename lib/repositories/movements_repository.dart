@@ -68,7 +68,8 @@ class MovementsRepository {
     // basta: category_id y account_id son NOT NULL con FOREIGN KEY, así que
     // todo movimiento tiene su pareja (a diferencia del saldo por cuenta).
     final maps = await db.rawQuery('''
-      SELECT m.*, c.name AS category_name, a.name AS account_name
+      SELECT m.*, c.name AS category_name, c.icon_key AS category_icon,
+             a.name AS account_name
       FROM movements m
       JOIN categories c ON c.id = m.category_id
       JOIN accounts a ON a.id = m.account_id

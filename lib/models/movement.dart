@@ -14,6 +14,8 @@ class Movement {
   // tabla movements, por eso no van en toMap). null si no se pidieron.
   final String? categoryName;
   final String? accountName;
+  // S16-02: el icono de la categoría (catálogo app_icons), también por JOIN.
+  final String? categoryIconKey;
 
   const Movement({
     this.id,
@@ -26,6 +28,7 @@ class Movement {
     required this.createdAtMs,
     this.categoryName,
     this.accountName,
+    this.categoryIconKey,
   });
 
   Map<String, dynamic> toMap() {
@@ -53,6 +56,7 @@ class Movement {
       createdAtMs: map['created_at_ms'] as int,
       categoryName: map['category_name'] as String?,
       accountName: map['account_name'] as String?,
+      categoryIconKey: map['category_icon'] as String?,
     );
   }
 
@@ -77,6 +81,7 @@ class Movement {
       createdAtMs: createdAtMs ?? this.createdAtMs,
       categoryName: categoryName,
       accountName: accountName,
+      categoryIconKey: categoryIconKey,
     );
   }
 

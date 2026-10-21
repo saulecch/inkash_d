@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/categories/categories_page.dart';
 import 'features/history/history_page.dart';
 import 'features/home/presentation/controllers/home_controller.dart';
 import 'features/home/presentation/widgets/movement_bottom_sheet.dart';
 import 'features/navigation/navigation_controller.dart';
+import 'features/settings/settings_page.dart';
 import 'home.dart';
 import 'theme.dart';
 import 'widgets/coming_soon_page.dart';
@@ -39,7 +41,7 @@ class InkashShell extends ConsumerWidget {
           HomePage(),
           ComingSoonPage(title: 'Presupuesto', icon: Icons.bar_chart),
           HistoryPage(),
-          ComingSoonPage(title: 'Ajustes', icon: Icons.settings),
+          SettingsPage(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -85,6 +87,9 @@ class InkashShell extends ConsumerWidget {
       context: context,
       loadOptions: controller.loadFormOptions,
       onSave: controller.saveMovement,
+      // S16-02: "+ Nueva" abre la hoja de categoría encima del formulario.
+      onNewCategory: (classification) =>
+          openCategoryForm(context, ref, initialClassification: classification),
     );
     if (saved != true || !context.mounted) return;
     // El controller ya reconsultó SQLite; las pantallas se actualizan solas

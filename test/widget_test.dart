@@ -207,8 +207,30 @@ class FakeAccountsRepository extends AccountsRepository {
 }
 
 class FakeCategoriesRepository extends CategoriesRepository {
+  // S16-02: tabla de categorías en memoria (crear desde la UI).
+  final categories = [...fakeCategories];
+
   @override
-  Future<List<Category>> getAll() async => fakeCategories;
+  Future<List<Category>> getAll() async => [...categories];
+
+  @override
+  Future<Category> save({
+    int? id,
+    required String name,
+    required String classification,
+    required String iconKey,
+  }) async {
+    final saved = Category(
+      id: id ?? 100 + categories.length,
+      name: name.trim(),
+      classification: classification,
+      iconKey: iconKey,
+    );
+    categories
+      ..removeWhere((c) => c.id == saved.id)
+      ..add(saved);
+    return saved;
+  }
 }
 
 // Solo octubre tiene presupuesto: si el reloj no se usara, no habría.
@@ -355,7 +377,7 @@ void main() {
     // y find las ignora por defecto.
     expect(find.text('Próximamente'), findsNothing);
 
-    await tester.tap(find.text('Ajustes'));
+    await tester.tap(find.text('Presupuesto'));
     await tester.pumpAndSettle();
     expect(find.text('Próximamente'), findsOneWidget);
 
@@ -484,5 +506,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Crear cuenta'), findsNothing); // se cerró
     expect(find.text('Tarjeta · inicial −Q500.00'), findsOneWidget);
+  });
+
+  testWidgets('Ajustes -> Categorías: secciones y crear una nueva', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      appWith(FakeMovementsRepository(() async => sampleMovements)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Categorías'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Gastos'), findsOneWidget);
+    expect(find.text('Ingresos'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Salario'), findsOneWidget);
+
+    await tester.tap(find.text('Nueva categoría'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Mascotas');
+    await tester.pump();
+    await tester.tap(find.text('Crear categoría'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'Mascotas'), findsOneWidget);
   });
 }
