@@ -298,8 +298,18 @@ class FakeBudgetsRepository extends BudgetsRepository {
 
 // S17-02: ajustes en memoria.
 class FakeSettingsRepository extends SettingsRepository {
+  // S17-03: por defecto, alguien que ya pasó la bienvenida.
+  FakeSettingsRepository({this.welcomeCompleted = true});
+
   var userName = 'Kevin';
   var deleteAllCalls = 0;
+  bool welcomeCompleted;
+
+  @override
+  Future<bool> getWelcomeCompleted() async => welcomeCompleted;
+
+  @override
+  Future<void> markWelcomeCompleted() async => welcomeCompleted = true;
 
   @override
   Future<String> getUserName() async => userName;
@@ -308,7 +318,10 @@ class FakeSettingsRepository extends SettingsRepository {
   Future<void> setUserName(String name) async => userName = name.trim();
 
   @override
-  Future<void> deleteAllUserData() async => deleteAllCalls++;
+  Future<void> deleteAllUserData() async {
+    deleteAllCalls++;
+    welcomeCompleted = false; // como el real: se borra app_settings
+  }
 }
 
 class FakeSavingsGoalsRepository extends SavingsGoalsRepository {
@@ -369,13 +382,24 @@ class FakeCategoryBudgetsRepository extends CategoryBudgetsRepository {
       limits[categoryId] = limitMinor;
 }
 
-List<Override> overridesWith(FakeMovementsRepository movements) => [
+List<Override> overridesWith(
+  FakeMovementsRepository movements, {
+  FakeSettingsRepository? settings,
+  FakeBudgetsRepository? budgets,
+  FakeAccountsRepository? accounts,
+}) => [
   // Override: en la prueba, cada provider entrega su repositorio falso.
   movementsRepositoryProvider.overrideWithValue(movements),
-  accountsRepositoryProvider.overrideWithValue(FakeAccountsRepository()),
+  accountsRepositoryProvider.overrideWithValue(
+    accounts ?? FakeAccountsRepository(),
+  ),
   categoriesRepositoryProvider.overrideWithValue(FakeCategoriesRepository()),
-  budgetsRepositoryProvider.overrideWithValue(FakeBudgetsRepository()),
-  settingsRepositoryProvider.overrideWithValue(FakeSettingsRepository()),
+  budgetsRepositoryProvider.overrideWithValue(
+    budgets ?? FakeBudgetsRepository(),
+  ),
+  settingsRepositoryProvider.overrideWithValue(
+    settings ?? FakeSettingsRepository(),
+  ),
   savingsGoalsRepositoryProvider.overrideWithValue(
     FakeSavingsGoalsRepository(),
   ),
@@ -408,6 +432,8 @@ void main() {
     await tester.pumpWidget(
       appWith(FakeMovementsRepository(() => reading.future)),
     );
+    // S17-03: el primer frame lee Ajustes (¿bienvenida o pestañas?).
+    await tester.pump();
 
     // Mientras el Future no termina: estado de carga.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -875,7 +901,70 @@ void main() {
     await tester.pumpAndSettle();
     expect(settings.deleteAllCalls, 1);
     expect(find.text('Datos borrados'), findsOneWidget);
-    // El Inicio se volvió a consultar (invalidate explícito).
-    expect(movements.recentCalls, greaterThan(callsBefore));
+    // El Historial se volvió a consultar (invalidate explícito).
+    expect(movements.recentCalls, greaterThanOrEqualTo(callsBefore));
+    // S17-03: la bandera se borró con los datos: vuelve la bienvenida.
+    expect(find.text('Te damos la bienvenida a Inkash'), findsOneWidget);
+  });
+
+  testWidgets('bienvenida: 3 pasos y luego el Inicio ya configurado', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final movements = FakeMovementsRepository(() async => sampleMovements);
+    final settings = FakeSettingsRepository(welcomeCompleted: false)
+      ..userName = '';
+    final budgets = FakeBudgetsRepository()..budgets.clear();
+    final accounts = FakeAccountsRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesWith(
+          movements,
+          settings: settings,
+          budgets: budgets,
+          accounts: accounts,
+        ),
+        child: const InkashApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Paso 1: nombre (opcional).
+    expect(find.text('Paso 1 de 3'), findsOneWidget);
+    expect(find.byType(BottomNavigationBar), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Ana');
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+
+    // Paso 2: el límite es obligatorio: vacío no avanza.
+    expect(find.text('¿Cuánto quieres gastar al mes?'), findsOneWidget);
+    FilledButton next() =>
+        tester.widget(find.widgetWithText(FilledButton, 'Continuar'));
+    expect(next().onPressed, isNull);
+    await tester.enterText(find.byType(TextField), '12.345');
+    await tester.pump();
+    expect(next().onPressed, isNull); // mismo parser sin double
+    await tester.enterText(find.byType(TextField), '5000');
+    await tester.pump();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+
+    // Paso 3: saldo de hoy por cuenta (opcional); Banco se deja vacío.
+    expect(find.text('¿Cuánto tienes hoy?'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Efectivo'), '150');
+    await tester.tap(find.text('Empezar'));
+    await tester.pumpAndSettle();
+
+    // Se guardó con los MISMOS repositorios de siempre...
+    expect(settings.welcomeCompleted, isTrue);
+    expect(budgets.budgets['2026-10-01']!.limitMinor, 500000);
+    final efectivo = accounts.balances.firstWhere((a) => a.name == 'Efectivo');
+    expect(efectivo.initialBalanceMinor, 15000); // su 'Saldo inicial'
+    // ...y la raíz mostró las pestañas con el Inicio ya configurado.
+    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.text('Hola, Ana'), findsOneWidget);
+    expect(find.text('Has usado Q808.50 de Q5,000.00'), findsOneWidget);
   });
 }

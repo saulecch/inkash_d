@@ -8,23 +8,33 @@ class SettingsRepository {
   final AppDatabase _db;
 
   static const _userNameKey = 'user_name';
+  static const _welcomeKey = 'welcome_completed';
 
-  Future<String> getUserName() async {
+  Future<String> getUserName() async => await _get(_userNameKey) ?? '';
+
+  Future<void> setUserName(String name) => _set(_userNameKey, name.trim());
+
+  // S17-03: la bandera de la bienvenida, en la misma tabla clave/valor.
+  Future<bool> getWelcomeCompleted() async => await _get(_welcomeKey) == '1';
+
+  Future<void> markWelcomeCompleted() => _set(_welcomeKey, '1');
+
+  Future<String?> _get(String key) async {
     final db = await _db.database;
     final rows = await db.query(
       'app_settings',
       where: 'key = ?',
-      whereArgs: [_userNameKey],
+      whereArgs: [key],
     );
-    return rows.isEmpty ? '' : rows.single['value']! as String;
+    return rows.isEmpty ? null : rows.single['value']! as String;
   }
 
   // Upsert: key es la llave primaria, REPLACE sustituye el valor anterior.
-  Future<void> setUserName(String name) async {
+  Future<void> _set(String key, String value) async {
     final db = await _db.database;
     await db.insert('app_settings', {
-      'key': _userNameKey,
-      'value': name.trim(),
+      'key': key,
+      'value': value,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

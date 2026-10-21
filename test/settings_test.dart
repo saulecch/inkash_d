@@ -113,6 +113,8 @@ void main() {
       }
       expect(await db.query('categories'), categoriesBefore);
       expect(await db.query('accounts'), hasLength(1)); // 'Efectivo'
+      // S17-03: la bandera de la bienvenida se reinicia con los datos.
+      expect(await settings.getWelcomeCompleted(), isFalse);
     },
   );
 }

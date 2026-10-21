@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/account_balance.dart';
 import '../../models/app_settings.dart';
 import '../../models/monthly_budget.dart';
 import '../../repositories/settings_repository.dart';
@@ -10,7 +11,7 @@ import '../goals/goals_provider.dart';
 import '../history/history_controller.dart';
 import '../home/presentation/controllers/exchange_rate_provider.dart';
 import '../home/presentation/controllers/home_controller.dart'
-    show budgetsRepositoryProvider;
+    show accountsRepositoryProvider, budgetsRepositoryProvider;
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(),
@@ -35,14 +36,42 @@ class SettingsController extends AsyncNotifier<AppSettings> {
 
   @override
   Future<AppSettings> build() async {
-    final (userName, budget) = await (
+    final (userName, budget, welcomeCompleted) = await (
       _settings.getUserName(),
       ref.read(budgetsRepositoryProvider).getLatestUpTo(_currentMonthStart),
+      _settings.getWelcomeCompleted(),
     ).wait;
     return AppSettings(
       userName: userName,
       monthlyLimitMinor: budget?.limitMinor ?? 0,
+      welcomeCompleted: welcomeCompleted,
     );
+  }
+
+  // S17-03: lo que se contesta en la bienvenida se guarda con los MISMOS
+  // repositorios que usan Ajustes y Cuentas: la bienvenida no tiene datos
+  // propios, solo es otra forma de llegar a ellos. El saldo de hoy de cada
+  // cuenta va por el camino de siempre: su movimiento 'Saldo inicial'.
+  Future<void> completeWelcome({
+    required String name,
+    required int monthlyLimitMinor,
+    required List<(AccountBalance, int)> initialBalances,
+  }) async {
+    if (name.trim().isNotEmpty) await _settings.setUserName(name);
+    await _saveMonthlyLimit(monthlyLimitMinor);
+    final accounts = ref.read(accountsRepositoryProvider);
+    for (final (account, balance) in initialBalances) {
+      await accounts.save(
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        initialBalanceMinor: balance,
+      );
+    }
+    await _settings.markWelcomeCompleted();
+    ref.invalidate(accountBalancesProvider);
+    ref.invalidateSelf(); // la raíz de la app mira esto y muestra las pestañas
+    await future;
   }
 
   Future<void> changeUserName(String name) async {
@@ -53,6 +82,12 @@ class SettingsController extends AsyncNotifier<AppSettings> {
 
   // Se guarda como el límite del mes ACTUAL; los meses pasados no cambian.
   Future<void> changeMonthlyLimit(int limitMinor) async {
+    await _saveMonthlyLimit(limitMinor);
+    ref.invalidateSelf();
+    await future;
+  }
+
+  Future<void> _saveMonthlyLimit(int limitMinor) async {
     await ref
         .read(budgetsRepositoryProvider)
         .upsert(
@@ -62,8 +97,6 @@ class SettingsController extends AsyncNotifier<AppSettings> {
             createdAtMs: DateTime.now().millisecondsSinceEpoch,
           ),
         );
-    ref.invalidateSelf();
-    await future;
   }
 
   Future<void> deleteAllUserData() async {
