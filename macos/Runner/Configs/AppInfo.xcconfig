@@ -8,7 +8,7 @@
 PRODUCT_NAME = inkash_d
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.inkashd
+PRODUCT_BUNDLE_IDENTIFIER = gt.edu.umes.inkashd
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 UMES. All rights reserved.

@@ -1,5 +1,5 @@
 name: inkash_d
-description: "A new Flutter project."
+description: "Inkash D: finanzas personales en quetzales (proyecto de clase PDM 2026, sección D)."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,11 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+# S17-04: versión = <versionName>+<versionCode>.
+# - 0.9.0 es lo que ve el usuario (beta).
+# - +1 es el número que Play usa para ordenar builds: cada AAB que se sube
+#   debe tener uno MAYOR que el anterior, aunque el 0.9.0 no cambie.
+version: 0.9.0+1
 
 environment:
   sdk: ^3.12.2
@@ -50,6 +54,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   sqflite_common_ffi: ^2.4.4
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -103,3 +108,16 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# S17-04: genera los íconos de Android, iOS y macOS desde un PNG de 1024 px.
+# Se corre a mano: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+  android: true
+  # Android 8+: ícono adaptativo (el sistema recorta la forma).
+  adaptive_icon_background: "#0E120C"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  ios: true
+  remove_alpha_ios: true # App Store rechaza íconos con transparencia
+  macos:
+    generate: true
