@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../utils/money.dart';
 import '../utils/parse_amount.dart';
+import 'ui/form_sheet.dart';
 
 /// Resultado de [askAmount]: qué botón se tocó y el monto en centavos.
 typedef AmountAnswer = ({String action, int? amountMinor});
@@ -23,12 +24,9 @@ Future<AmountAnswer?> askAmount(
   int? initialMinor,
   List<String> actions = const ['Guardar'],
 }) {
-  return showModalBottomSheet<AmountAnswer>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: kSuperficie,
-    builder: (_) => _AmountSheet(
+  return showFormSheet<AmountAnswer>(
+    context,
+    (_) => _AmountSheet(
       title: title,
       help: help,
       initialMinor: initialMinor,
@@ -74,67 +72,52 @@ class _AmountSheetState extends State<_AmountSheet> {
   @override
   Widget build(BuildContext context) {
     final main = widget.actions.last;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        0,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
-          if (widget.help != null) ...[
-            const SizedBox(height: 4),
-            Text(widget.help!, style: const TextStyle(color: kMuted)),
-          ],
-          const SizedBox(height: 20),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              prefixText: 'Q ',
-              hintText: '0.00',
-              errorText: _controller.text.isNotEmpty && _amountMinor == null
-                  ? 'Mayor que 0 y hasta 2 decimales'
-                  : null,
-            ),
+    // S17-01: FormSheet pone título, márgenes y espacio del teclado.
+    return FormSheet(
+      title: widget.title,
+      description: widget.help,
+      children: [
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+            prefixText: 'Q ',
+            hintText: '0.00',
+            errorText: _controller.text.isNotEmpty && _amountMinor == null
+                ? 'Mayor que 0 y hasta 2 decimales'
+                : null,
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              for (final action in widget.actions.take(
-                widget.actions.length - 1,
-              ))
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context, (
-                      action: action,
-                      amountMinor: _amountMinor,
-                    )),
-                    child: Text(action),
-                  ),
-                ),
+        ),
+        const SizedBox(height: Spacing.xl),
+        Row(
+          children: [
+            for (final action in widget.actions.take(widget.actions.length - 1))
               Expanded(
-                flex: 2,
-                child: FilledButton(
-                  onPressed: _amountMinor == null
-                      ? null
-                      : () => Navigator.pop(context, (
-                          action: main,
-                          amountMinor: _amountMinor,
-                        )),
-                  child: Text(main),
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, (
+                    action: action,
+                    amountMinor: _amountMinor,
+                  )),
+                  child: Text(action),
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
+            Expanded(
+              flex: 2,
+              child: FilledButton(
+                onPressed: _amountMinor == null
+                    ? null
+                    : () => Navigator.pop(context, (
+                        action: main,
+                        amountMinor: _amountMinor,
+                      )),
+                child: Text(main),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

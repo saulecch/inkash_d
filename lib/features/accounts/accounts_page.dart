@@ -7,6 +7,9 @@ import '../../utils/money.dart';
 import '../../widgets/app_icons.dart';
 import '../history/history_controller.dart';
 import '../home/presentation/controllers/home_controller.dart';
+import '../../widgets/ui/form_sheet.dart';
+import '../../widgets/ui/money_text.dart';
+import '../../widgets/ui/section.dart';
 import 'account_balances_provider.dart';
 import 'account_sheet.dart';
 
@@ -26,14 +29,13 @@ class AccountsPage extends ConsumerWidget {
         label: const Text('Nueva cuenta'),
       ),
       body: accounts.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: kLima)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('No pudimos leer tus cuentas.'),
-              const SizedBox(height: 12),
+              const SizedBox(height: Spacing.m),
               OutlinedButton(
                 onPressed: () => ref.invalidate(accountBalancesProvider),
                 child: const Text('Reintentar'),
@@ -42,43 +44,55 @@ class AccountsPage extends ConsumerWidget {
           ),
         ),
         data: (list) {
+          final text = Theme.of(context).textTheme;
           final total = list.fold(0, (t, a) => t + a.balanceMinor);
+          // S17-01: total arriba y las cuentas en una Sección.
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            padding: const EdgeInsets.only(top: Spacing.s, bottom: 96),
             children: [
-              const Text(
-                'Total',
-                style: TextStyle(color: kMuted, fontSize: 12),
-              ),
-              Text(
-                _signed(total),
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w500,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Spacing.l,
+                  0,
+                  Spacing.l,
+                  Spacing.xl,
                 ),
-              ),
-              const SizedBox(height: 16),
-              for (final account in list)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: kIconoFondo,
-                    child: Icon(iconFor(account.iconKey), color: kLima),
-                  ),
-                  title: Text(account.name),
-                  subtitle: Text(
-                    '${AccountBalance.typeLabels[account.type]} · '
-                    'inicial ${_signed(account.initialBalanceMinor)}',
-                    style: const TextStyle(color: kMuted, fontSize: 12),
-                  ),
-                  trailing: Text(
-                    _signed(account.balanceMinor),
-                    style: TextStyle(
-                      color: account.balanceMinor < 0 ? kPeligro : kTexto,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Total en tus cuentas', style: text.bodySmall),
+                    const SizedBox(height: Spacing.xs),
+                    MoneyText(
+                      total,
+                      style: text.headlineSmall?.copyWith(fontSize: 32),
                     ),
-                  ),
-                  onTap: () => _openForm(context, ref, account: account),
+                  ],
                 ),
+              ),
+              Section(
+                children: [
+                  for (final account in list)
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: kIconoFondo,
+                        child: Icon(iconFor(account.iconKey), color: kLima),
+                      ),
+                      title: Text(account.name),
+                      subtitle: Text(
+                        '${AccountBalance.typeLabels[account.type]} · '
+                        'inicial ${_signed(account.initialBalanceMinor)}',
+                      ),
+                      trailing: MoneyText(
+                        account.balanceMinor,
+                        style: text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          color: account.balanceMinor < 0 ? kPeligro : kTexto,
+                        ),
+                      ),
+                      onTap: () => _openForm(context, ref, account: account),
+                    ),
+                ],
+              ),
             ],
           );
         },
@@ -103,12 +117,9 @@ class AccountsPage extends ConsumerWidget {
       ref.invalidate(historyProvider);
     }
 
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: kSuperficie,
-      builder: (_) => AccountSheet(
+    return showFormSheet<void>(
+      context,
+      (_) => AccountSheet(
         account: account,
         onSave: (data) async {
           await repository.save(

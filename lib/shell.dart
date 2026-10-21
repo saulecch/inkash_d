@@ -7,7 +7,6 @@ import 'features/home/presentation/widgets/open_movement_form.dart';
 import 'features/navigation/navigation_controller.dart';
 import 'features/settings/settings_page.dart';
 import 'home.dart';
-import 'theme.dart';
 
 // S15-01: el "cascarón" de la app: la barra inferior y una pantalla por
 // pestaña. Antes la barra vivía dentro de HomePage, así que solo existía
@@ -46,8 +45,6 @@ class InkashShell extends ConsumerWidget {
         currentIndex: _tabsByIndex.entries
             .firstWhere((entry) => entry.value == current)
             .key,
-        selectedItemColor: kLima,
-        type: BottomNavigationBarType.fixed,
         onTap: (index) {
           if (index == _addIndex) {
             openMovementForm(context, ref); // S16-03: helper compartido

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/savings_goal.dart';
 import '../../repositories/savings_goals_repository.dart';
 import '../../theme.dart';
+import '../../widgets/ui/form_sheet.dart';
 import '../../utils/money.dart';
 import '../../utils/parse_amount.dart';
 
@@ -69,71 +70,58 @@ class _GoalSheetState extends State<GoalSheet> {
   Widget build(BuildContext context) {
     final goal = widget.goal;
     final valid = _name.text.trim().isNotEmpty && _targetMinor != null;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        0,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            goal == null ? 'Nueva meta' : 'Editar meta',
-            style: Theme.of(context).textTheme.titleLarge,
+    // S17-01: FormSheet pone título, márgenes y espacio del teclado.
+    return FormSheet(
+      title: goal == null ? 'Nueva meta' : 'Editar meta',
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: goal == null,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre',
+            hintText: 'Ej. Viaje a Tikal',
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _name,
-            autofocus: goal == null,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Nombre',
-              hintText: 'Ej. Viaje a Tikal',
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _target,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Objetivo',
-              prefixText: 'Q ',
-              helperText: goal == null
-                  ? null
-                  : 'Llevas ${formatQuetzales(goal.savedAmountMinor)} '
-                        'ahorrados (no cambia al editar).',
-              errorText: _target.text.isNotEmpty && _targetMinor == null
-                  ? 'Mayor que 0 y hasta 2 decimales'
-                  : null,
-            ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: kPeligro)),
-          ],
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: valid && !_busy
-                ? () => _run(
-                    () => widget.onSave((
-                      name: _name.text,
-                      targetMinor: _targetMinor!,
-                    )),
-                  )
+        ),
+        const SizedBox(height: Spacing.m),
+        TextField(
+          controller: _target,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Objetivo',
+            prefixText: 'Q ',
+            helperText: goal == null
+                ? null
+                : 'Llevas ${formatQuetzales(goal.savedAmountMinor)} '
+                      'ahorrados (no cambia al editar).',
+            errorText: _target.text.isNotEmpty && _targetMinor == null
+                ? 'Mayor que 0 y hasta 2 decimales'
                 : null,
-            child: Text(goal == null ? 'Crear meta' : 'Guardar cambios'),
           ),
-          if (widget.onDelete != null)
-            TextButton(
-              onPressed: _busy ? null : () => _run(widget.onDelete!),
-              style: TextButton.styleFrom(foregroundColor: kPeligro),
-              child: const Text('Eliminar meta'),
-            ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: Spacing.m),
+          Text(_error!, style: const TextStyle(color: kPeligro)),
         ],
-      ),
+        const SizedBox(height: Spacing.xl),
+        FilledButton(
+          onPressed: valid && !_busy
+              ? () => _run(
+                  () => widget.onSave((
+                    name: _name.text,
+                    targetMinor: _targetMinor!,
+                  )),
+                )
+              : null,
+          child: Text(goal == null ? 'Crear meta' : 'Guardar cambios'),
+        ),
+        if (widget.onDelete != null)
+          TextButton(
+            onPressed: _busy ? null : () => _run(widget.onDelete!),
+            style: TextButton.styleFrom(foregroundColor: kPeligro),
+            child: const Text('Eliminar meta'),
+          ),
+      ],
     );
   }
 }

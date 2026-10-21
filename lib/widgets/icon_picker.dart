@@ -29,7 +29,7 @@ class IconPicker extends StatelessWidget {
           Tooltip(
             message: labels[key] ?? key,
             child: InkWell(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(Corners.control),
               onTap: () => onSelected(key),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -37,7 +37,7 @@ class IconPicker extends StatelessWidget {
                 height: labels.isEmpty ? 44 : 60,
                 decoration: BoxDecoration(
                   color: key == selected ? kIconoFondo : kFondo,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Corners.control),
                   border: Border.all(color: key == selected ? kLima : kBorde),
                 ),
                 child: Column(
@@ -49,7 +49,7 @@ class IconPicker extends StatelessWidget {
                       color: key == selected ? kLima : kMuted,
                     ),
                     if (labels[key] case final label?) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: Spacing.xs),
                       Text(
                         label,
                         style: TextStyle(

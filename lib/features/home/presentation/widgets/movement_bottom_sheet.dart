@@ -10,6 +10,7 @@ import '../../../../utils/money.dart';
 import '../../../../utils/occurred_on.dart';
 import '../../../../utils/parse_amount.dart';
 import '../../../../widgets/app_icons.dart';
+import '../../../../widgets/ui/form_sheet.dart';
 
 // S14-01: el sheet ya no recibe el controller completo, solo dos funciones.
 // No sabe que existen SQLite ni los repositorios, y en las pruebas se le
@@ -23,16 +24,10 @@ Future<String?> showMovementBottomSheet({
   Movement? initial,
   Future<void> Function()? onDelete,
 }) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: kSuperficie,
-    constraints: const BoxConstraints(maxWidth: 640),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (_) => MovementBottomSheet(
+  // S17-01: fondo, esquinas, asa y ancho máximo salen del tema.
+  return showFormSheet<String>(
+    context,
+    (_) => MovementBottomSheet(
       loadOptions: loadOptions,
       onSave: onSave,
       onNewCategory: onNewCategory,
@@ -225,24 +220,18 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset + 24),
+      padding: EdgeInsets.fromLTRB(
+        Spacing.xl,
+        0,
+        Spacing.xl,
+        bottomInset + Spacing.xl,
+      ),
       child: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: kMuted.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
@@ -250,10 +239,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                     widget.initial == null
                         ? 'Nuevo movimiento'
                         : 'Editar movimiento',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
                 IconButton(
@@ -262,7 +248,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: Spacing.l),
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(
@@ -277,6 +263,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                 ),
               ],
               selected: {_classification},
+              showSelectedIcon: false, // conserva las flechas de cada tipo
               onSelectionChanged: _saving
                   ? null
                   : (selection) => _changeClassification(selection.first),
@@ -284,7 +271,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                 visualDensity: VisualDensity(vertical: 2),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: Spacing.l),
             TextFormField(
               controller: _amountController,
               autofocus: true,
@@ -292,7 +279,10 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontSize: 30,
+                fontFeatures: kTabularFigures,
+              ),
               decoration: _decoration(
                 'Monto',
               ).copyWith(prefixText: 'Q ', hintText: '0.00'),
@@ -303,7 +293,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                 return null;
               },
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: Spacing.m),
             TextFormField(
               controller: _descriptionController,
               enabled: !_saving,
@@ -313,12 +303,12 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                   ? 'Escribe una descripción.'
                   : null,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: Spacing.m),
             if (_loading)
               const Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(color: kLima),
+                  padding: EdgeInsets.all(Spacing.xl),
+                  child: CircularProgressIndicator(),
                 ),
               )
             else ...[
@@ -340,7 +330,7 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                     ? 'Crea o selecciona una cuenta activa.'
                     : null,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: Spacing.m),
               // S16-02: chips con icono en vez de una lista desplegable:
               // se ve todo de un vistazo y cabe el chip "+ Nueva".
               FormField<int>(
@@ -366,8 +356,6 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                           ),
                           label: Text(category.name),
                           selected: _categoryId == category.id,
-                          selectedColor: kIconoFondo,
-                          showCheckmark: false,
                           onSelected: _saving
                               ? null
                               : (_) =>
@@ -384,22 +372,22 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                 ),
               ),
             ],
-            const SizedBox(height: 14),
+            const SizedBox(height: Spacing.m),
             InkWell(
               onTap: _saving ? null : _selectDate,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(Corners.control),
               child: InputDecorator(
                 decoration: _decoration('Fecha'),
                 child: Row(
                   children: [
                     const Icon(Icons.calendar_today_outlined, size: 18),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: Spacing.s),
                     Text(_formatDate(_occurredOn)),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: Spacing.m),
             TextFormField(
               controller: _notesController,
               enabled: !_saving,
@@ -408,20 +396,12 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
               decoration: _decoration('Notas (opcional)'),
             ),
             if (_error != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: Spacing.m),
               Text(_error!, style: const TextStyle(color: kPeligro)),
             ],
-            const SizedBox(height: 22),
+            const SizedBox(height: Spacing.xl),
             FilledButton(
               onPressed: _loading || _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: kLima,
-                foregroundColor: kFondo,
-                minimumSize: const Size.fromHeight(54),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
               // Mientras guarda, el botón dice qué está pasando (no solo gira).
               child: _saving
                   ? const Row(
@@ -434,24 +414,20 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
                             color: kFondo,
                           ),
                         ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Guardando…',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
+                        SizedBox(width: Spacing.s),
+                        Text('Guardando…'),
                       ],
                     )
                   : Text(
                       widget.initial == null
                           ? 'Guardar movimiento'
                           : 'Guardar cambios',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
             ),
             // S16-03: borrar también desde aquí (en escritorio deslizar en
             // el Historial no es obvio). El Deshacer lo muestra quien abrió.
             if (widget.onDelete != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: Spacing.s),
               TextButton.icon(
                 onPressed: _saving
                     ? null
@@ -472,21 +448,9 @@ class _MovementBottomSheetState extends State<MovementBottomSheet> {
     );
   }
 
-  InputDecoration _decoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: kFondo,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kBorde),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kBorde),
-      ),
-    );
-  }
+  // S17-01: relleno, bordes y colores vienen de inputDecorationTheme.
+  InputDecoration _decoration(String label) =>
+      InputDecoration(labelText: label);
 
   String _formatDate(DateTime date) {
     const months = [

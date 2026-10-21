@@ -7,6 +7,8 @@ import '../../widgets/app_icons.dart';
 import '../budget/budget_provider.dart';
 import '../history/history_controller.dart';
 import '../home/presentation/controllers/home_controller.dart';
+import '../../widgets/ui/form_sheet.dart';
+import '../../widgets/ui/section.dart';
 import 'categories_provider.dart';
 import 'category_sheet.dart';
 
@@ -25,14 +27,13 @@ class CategoriesPage extends ConsumerWidget {
         label: const Text('Nueva categoría'),
       ),
       body: categories.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: kLima)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('No pudimos leer las categorías.'),
-              const SizedBox(height: 12),
+              const SizedBox(height: Spacing.m),
               OutlinedButton(
                 onPressed: () => ref.invalidate(categoriesProvider),
                 child: const Text('Reintentar'),
@@ -49,11 +50,12 @@ class CategoriesPage extends ConsumerWidget {
             (c) => c.isArchived && c.classification != 'adjustment',
           );
           return ListView(
-            padding: const EdgeInsets.only(bottom: 96),
+            padding: const EdgeInsets.only(top: Spacing.s, bottom: 96),
             children: [
-              _Section('Gastos', active('expense'), ref),
-              _Section('Ingresos', active('income'), ref),
-              if (archived.isNotEmpty) _Section('Archivadas', archived, ref),
+              _CategorySection('Gastos', active('expense'), ref),
+              _CategorySection('Ingresos', active('income'), ref),
+              if (archived.isNotEmpty)
+                _CategorySection('Archivadas', archived, ref),
             ],
           );
         },
@@ -62,8 +64,9 @@ class CategoriesPage extends ConsumerWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section(this.title, this.categories, this.ref);
+// S17-01: cada grupo es una Sección del sistema de diseño.
+class _CategorySection extends StatelessWidget {
+  const _CategorySection(this.title, this.categories, this.ref);
 
   final String title;
   final Iterable<Category> categories;
@@ -71,16 +74,9 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Section(
+      title: title,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text(
-            title,
-            style: const TextStyle(color: kLima, fontSize: 12),
-          ),
-        ),
         for (final c in categories)
           ListTile(
             leading: Icon(
@@ -91,7 +87,7 @@ class _Section extends StatelessWidget {
               c.name,
               style: TextStyle(color: c.isArchived ? kMuted : kTexto),
             ),
-            trailing: const Icon(Icons.chevron_right, color: kMuted),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => openCategoryForm(context, ref, category: c),
           ),
       ],
@@ -118,12 +114,9 @@ Future<Category?> openCategoryForm(
     ref.invalidate(categoryBudgetsProvider); // S16-04: filas del presupuesto
   }
 
-  return showModalBottomSheet<Category>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: kSuperficie,
-    builder: (_) => CategorySheet(
+  return showFormSheet<Category>(
+    context,
+    (_) => CategorySheet(
       category: category,
       initialClassification: initialClassification,
       onSave: (data) async {

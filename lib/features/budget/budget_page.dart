@@ -8,6 +8,8 @@ import '../../utils/dates.dart';
 import '../../utils/money.dart';
 import '../../widgets/amount_sheet.dart';
 import '../../widgets/app_icons.dart';
+import '../../widgets/ui/page_header.dart';
+import '../../widgets/ui/section.dart';
 import 'budget_provider.dart';
 
 // S16-04: la pestaña Presupuesto. Gastado vs límite por categoría.
@@ -21,14 +23,13 @@ class BudgetPage extends ConsumerWidget {
 
     return SafeArea(
       child: budgets.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: kLima)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('No pudimos leer el presupuesto.'),
-              const SizedBox(height: 12),
+              const SizedBox(height: Spacing.m),
               OutlinedButton(
                 onPressed: () => ref.invalidate(categoryBudgetsProvider),
                 child: const Text('Reintentar'),
@@ -36,26 +37,30 @@ class BudgetPage extends ConsumerWidget {
             ],
           ),
         ),
+        // S17-01: encabezado, resumen y una Sección, como las demás pestañas.
         data: (rows) => ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.only(bottom: Spacing.xxl),
           children: [
-            Text(
-              'Presupuesto · ${monthName(month)}',
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Toca una categoría para definir su límite mensual.',
-              style: TextStyle(color: kMuted, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            _Summary(rows: rows),
-            const SizedBox(height: 8),
-            for (final row in rows)
-              _BudgetRow(
-                budget: row,
-                onTap: () => _editLimit(context, ref, row),
+            PageHeader(title: 'Presupuesto', subtitle: monthName(month)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Spacing.l,
+                0,
+                Spacing.l,
+                Spacing.xl,
               ),
+              child: _Summary(rows: rows),
+            ),
+            Section(
+              title: 'Toca una categoría para definir su límite mensual',
+              children: [
+                for (final row in rows)
+                  _BudgetRow(
+                    budget: row,
+                    onTap: () => _editLimit(context, ref, row),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -98,21 +103,20 @@ class _BudgetRow extends StatelessWidget {
     final color = budget.isExceeded ? kPeligro : kLima;
     return ListTile(
       onTap: onTap,
-      contentPadding: EdgeInsets.zero,
       leading: Icon(iconFor(budget.iconKey), color: color),
       title: Text(budget.name),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 6),
+          const SizedBox(height: Spacing.s),
           if (budget.progress != null)
             LinearProgressIndicator(
               value: budget.progress,
               minHeight: 6,
               color: color,
-              borderRadius: const BorderRadius.all(Radius.circular(3)),
+              borderRadius: BorderRadius.circular(Spacing.xs),
             ),
-          const SizedBox(height: 4),
+          const SizedBox(height: Spacing.xs),
           Text(
             limit == null
                 ? 'Gastado ${formatQuetzales(budget.spentMinor)} · sin límite'
@@ -121,6 +125,7 @@ class _BudgetRow extends StatelessWidget {
                       '${budget.isExceeded ? ' · excedido' : ''}',
             style: TextStyle(
               fontSize: 12,
+              fontFeatures: kTabularFigures,
               color: budget.isExceeded ? kPeligro : kMuted,
             ),
           ),
@@ -138,47 +143,47 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     final withLimit = rows.where((r) => r.limitMinor != null);
     if (withLimit.isEmpty) {
-      return const Text(
+      return Text(
         'Aún no tienes límites. Empieza por la categoría donde más gastas.',
-        style: TextStyle(color: kMuted),
+        style: text.bodySmall,
       );
     }
     final limit = withLimit.fold(0, (t, r) => t + r.limitMinor!);
     final spent = withLimit.fold(0, (t, r) => t + r.spentMinor);
     final exceeded = withLimit.where((r) => r.isExceeded).length;
     final left = limit - spent;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kSuperficie,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: kBorde),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            left >= 0
-                ? 'Te quedan ${formatQuetzales(left)}'
-                : 'Te pasaste por ${formatQuetzales(left)}',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w500,
-              color: left >= 0 ? kTexto : kPeligro,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.l),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // S17-01: excedido = "Te pasaste por …" en rojo, sin signo menos.
+            Text(
+              left >= 0
+                  ? 'Te quedan ${formatQuetzales(left)}'
+                  : 'Te pasaste por ${formatQuetzales(left)}',
+              style: text.titleLarge?.copyWith(
+                fontWeight: FontWeight.w500,
+                fontFeatures: kTabularFigures,
+                color: left >= 0 ? kTexto : kPeligro,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${formatQuetzales(spent)} de ${formatQuetzales(limit)}'
-            '${exceeded > 0 ? ' · $exceeded excedida${exceeded > 1 ? 's' : ''}' : ''}',
-            style: TextStyle(
-              fontSize: 12,
-              color: exceeded > 0 ? kPeligro : kMuted,
+            const SizedBox(height: Spacing.xs),
+            Text(
+              '${formatQuetzales(spent)} de ${formatQuetzales(limit)}'
+              '${exceeded > 0 ? ' · $exceeded excedida${exceeded > 1 ? 's' : ''}' : ''}',
+              style: text.bodySmall?.copyWith(
+                fontFeatures: kTabularFigures,
+                color: exceeded > 0 ? kPeligro : kMuted,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

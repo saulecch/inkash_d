@@ -7,7 +7,10 @@ import '../../theme.dart';
 import '../../utils/money.dart';
 import '../../widgets/amount_sheet.dart';
 import '../home/presentation/controllers/home_controller.dart';
+import '../../widgets/ui/empty_state.dart';
+import '../../widgets/ui/section.dart';
 import 'goal_sheet.dart';
+import '../../widgets/ui/form_sheet.dart';
 import 'goals_provider.dart';
 
 // S16-05: pantalla que se ABRE ENCIMA (Navigator.push) desde la tarjeta
@@ -28,14 +31,13 @@ class GoalsPage extends ConsumerWidget {
         label: const Text('Nueva meta'),
       ),
       body: goals.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: kLima)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('No pudimos leer tus metas.'),
-              const SizedBox(height: 12),
+              const SizedBox(height: Spacing.m),
               OutlinedButton(
                 onPressed: () => ref.invalidate(savingsGoalsProvider),
                 child: const Text('Reintentar'),
@@ -43,23 +45,31 @@ class GoalsPage extends ConsumerWidget {
             ],
           ),
         ),
+        // S17-01: vacío con acción; las metas en una Sección.
         data: (list) => list.isEmpty
-            ? const Center(
-                child: Text(
-                  'Aún no tienes metas.\nCrea la primera con "Nueva meta".',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: kMuted),
+            ? Center(
+                child: EmptyState(
+                  icon: Icons.savings_outlined,
+                  title: 'Aún no tienes metas',
+                  message: 'Ponle nombre a algo para lo que quieras ahorrar.',
+                  action: 'Crear mi primera meta',
+                  onAction: () => _openForm(context, ref),
                 ),
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                padding: const EdgeInsets.only(top: Spacing.s, bottom: 96),
                 children: [
-                  for (final goal in list)
-                    _GoalRow(
-                      goal: goal,
-                      onMoveMoney: () => _moveMoney(context, ref, goal),
-                      onEdit: () => _openForm(context, ref, goal: goal),
-                    ),
+                  Section(
+                    title: 'Toca una meta para aportar o retirar',
+                    children: [
+                      for (final goal in list)
+                        _GoalRow(
+                          goal: goal,
+                          onMoveMoney: () => _moveMoney(context, ref, goal),
+                          onEdit: () => _openForm(context, ref, goal: goal),
+                        ),
+                    ],
+                  ),
                 ],
               ),
       ),
@@ -78,12 +88,9 @@ class GoalsPage extends ConsumerWidget {
     SavingsGoal? goal,
   }) {
     final repository = ref.read(savingsGoalsRepositoryProvider);
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: kSuperficie,
-      builder: (_) => GoalSheet(
+    return showFormSheet<void>(
+      context,
+      (_) => GoalSheet(
         goal: goal,
         onSave: (data) async {
           goal == null
@@ -149,7 +156,6 @@ class _GoalRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onMoveMoney,
-      contentPadding: EdgeInsets.zero,
       leading: Icon(
         goal.isCompleted ? Icons.check_circle : Icons.savings_outlined,
         color: kLima,
@@ -163,18 +169,17 @@ class _GoalRow extends StatelessWidget {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 6),
+          const SizedBox(height: Spacing.s),
           LinearProgressIndicator(
             value: goal.progress,
             minHeight: 6,
-            color: kLima,
-            borderRadius: const BorderRadius.all(Radius.circular(3)),
+            borderRadius: BorderRadius.circular(Spacing.xs),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: Spacing.xs),
           Text(
             '${formatQuetzales(goal.savedAmountMinor)} de '
             '${formatQuetzales(goal.targetAmountMinor)}',
-            style: const TextStyle(fontSize: 12, color: kMuted),
+            style: const TextStyle(fontFeatures: kTabularFigures),
           ),
         ],
       ),

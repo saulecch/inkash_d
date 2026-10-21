@@ -6,6 +6,7 @@ import '../../theme.dart';
 import '../../utils/money.dart';
 import '../../utils/parse_amount.dart';
 import '../../widgets/icon_picker.dart';
+import '../../widgets/ui/form_sheet.dart';
 
 // Lo que devuelve el formulario al guardar.
 typedef AccountData = ({String name, String type, int initialBalanceMinor});
@@ -91,88 +92,75 @@ class _AccountSheetState extends State<AccountSheet> {
       for (final e in AccountBalance.typeIcons.entries) e.value: e.key,
     };
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        0,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            editing ? 'Editar cuenta' : 'Nueva cuenta',
-            style: Theme.of(context).textTheme.titleLarge,
+    // S17-01: FormSheet pone título, márgenes y espacio del teclado.
+    return FormSheet(
+      title: editing ? 'Editar cuenta' : 'Nueva cuenta',
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: !editing,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre',
+            hintText: 'Ej. Banco Industrial',
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _name,
-            autofocus: !editing,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Nombre',
-              hintText: 'Ej. Banco Industrial',
-            ),
-          ),
-          const SizedBox(height: 16),
-          // En D el icono es el TIPO de cuenta (columna type con CHECK).
-          IconPicker(
-            options: AccountBalance.typeIcons.values.toList(),
-            selected: AccountBalance.typeIcons[_type]!,
-            labels: {
-              for (final e in AccountBalance.typeIcons.entries)
-                e.value: AccountBalance.typeLabels[e.key]!,
-            },
-            onSelected: (icon) => setState(() => _type = typeByIcon[icon]!),
-          ),
-          const SizedBox(height: 20),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Tengo')),
-              ButtonSegment(value: true, label: Text('Debo')),
-            ],
-            selected: {_isDebt},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => setState(() => _isDebt = s.single),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _initial,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: _isDebt ? 'Deuda al empezar' : 'Saldo al empezar',
-              prefixText: 'Q ',
-              helperText: 'Lo que había antes de registrar movimientos',
-              errorText: _initialMinor == null ? 'Monto inválido' : null,
-            ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: kPeligro)),
+        ),
+        const SizedBox(height: Spacing.l),
+        // En D el icono es el TIPO de cuenta (columna type con CHECK).
+        IconPicker(
+          options: AccountBalance.typeIcons.values.toList(),
+          selected: AccountBalance.typeIcons[_type]!,
+          labels: {
+            for (final e in AccountBalance.typeIcons.entries)
+              e.value: AccountBalance.typeLabels[e.key]!,
+          },
+          onSelected: (icon) => setState(() => _type = typeByIcon[icon]!),
+        ),
+        const SizedBox(height: Spacing.xl),
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: false, label: Text('Tengo')),
+            ButtonSegment(value: true, label: Text('Debo')),
           ],
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _valid && !_busy
-                ? () => _run(
-                    () => widget.onSave((
-                      name: _name.text,
-                      type: _type,
-                      initialBalanceMinor: _initialMinor!,
-                    )),
-                  )
-                : null,
-            child: Text(editing ? 'Guardar cambios' : 'Crear cuenta'),
+          selected: {_isDebt},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => setState(() => _isDebt = s.single),
+        ),
+        const SizedBox(height: Spacing.m),
+        TextField(
+          controller: _initial,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: _isDebt ? 'Deuda al empezar' : 'Saldo al empezar',
+            prefixText: 'Q ',
+            helperText: 'Lo que había antes de registrar movimientos',
+            errorText: _initialMinor == null ? 'Monto inválido' : null,
           ),
-          if (widget.onDelete != null)
-            TextButton(
-              onPressed: _busy ? null : () => _run(widget.onDelete!),
-              style: TextButton.styleFrom(foregroundColor: kPeligro),
-              child: const Text('Eliminar cuenta'),
-            ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: Spacing.m),
+          Text(_error!, style: const TextStyle(color: kPeligro)),
         ],
-      ),
+        const SizedBox(height: Spacing.xl),
+        FilledButton(
+          onPressed: _valid && !_busy
+              ? () => _run(
+                  () => widget.onSave((
+                    name: _name.text,
+                    type: _type,
+                    initialBalanceMinor: _initialMinor!,
+                  )),
+                )
+              : null,
+          child: Text(editing ? 'Guardar cambios' : 'Crear cuenta'),
+        ),
+        if (widget.onDelete != null)
+          TextButton(
+            onPressed: _busy ? null : () => _run(widget.onDelete!),
+            style: TextButton.styleFrom(foregroundColor: kPeligro),
+            child: const Text('Eliminar cuenta'),
+          ),
+      ],
     );
   }
 }

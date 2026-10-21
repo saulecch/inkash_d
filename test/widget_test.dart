@@ -53,16 +53,37 @@ Movement _mov(
   categoryClassification: fakeCategories
       .firstWhere((c) => c.id == categoryId)
       .classification,
+  categoryIconKey: fakeCategories.firstWhere((c) => c.id == categoryId).iconKey,
   accountName: 'Efectivo',
 );
 
 // Las categorías del seed que usan los datos de prueba (orden por nombre).
 const fakeCategories = [
-  Category(id: 7, name: 'Entretenimiento', classification: 'expense'),
-  Category(id: 1, name: 'Salario', classification: 'income'),
-  Category(id: 6, name: 'Servicios', classification: 'expense'),
-  Category(id: 4, name: 'Supermercado', classification: 'expense'),
-  Category(id: 3, name: 'Transporte', classification: 'expense'),
+  Category(
+    id: 7,
+    name: 'Entretenimiento',
+    classification: 'expense',
+    iconKey: 'movie',
+  ),
+  Category(id: 1, name: 'Salario', classification: 'income', iconKey: 'work'),
+  Category(
+    id: 6,
+    name: 'Servicios',
+    classification: 'expense',
+    iconKey: 'bolt',
+  ),
+  Category(
+    id: 4,
+    name: 'Supermercado',
+    classification: 'expense',
+    iconKey: 'shopping_cart',
+  ),
+  Category(
+    id: 3,
+    name: 'Transporte',
+    classification: 'expense',
+    iconKey: 'directions_bus',
+  ),
 ];
 
 final sampleMovements = [
@@ -308,11 +329,13 @@ class FakeCategoryBudgetsRepository extends CategoryBudgetsRepository {
             name: 'Supermercado',
             spentMinor: 60000,
             limitMinor: limits[4] ?? 50000,
+            iconKey: 'shopping_cart',
           ),
           const CategoryBudget(
             categoryId: 6,
             name: 'Servicios',
             spentMinor: 42000,
+            iconKey: 'bolt',
           ),
         ]
       : const [];
@@ -367,8 +390,11 @@ void main() {
     reading.complete(sampleMovements);
     await tester.pumpAndSettle();
 
-    // Saldo grande + tarjeta "Cuentas".
-    expect(find.textContaining('Q4,162.00'), findsNWidgets(2));
+    // S17-01: la cifra grande es lo que QUEDA del mes (límite - gastado);
+    // el total de las cuentas va en su tarjeta.
+    expect(find.text('Te quedan este mes'), findsOneWidget);
+    expect(find.text('Q5,691.50'), findsOneWidget);
+    expect(find.text('Q4,162.00'), findsOneWidget); // tarjeta Cuentas
     expect(find.text('Uber al trabajo'), findsOneWidget);
     expect(find.text('Transporte · Efectivo'), findsOneWidget); // S16-01
     expect(find.text('3 activas'), findsOneWidget);
@@ -450,11 +476,17 @@ void main() {
     // IndexedStack: las pestañas ocultas existen pero están "offstage",
     // y find las ignora por defecto.
     // S16-04: ya no quedan pantallas "Próximamente".
-    expect(find.text('Presupuesto · Octubre 2026'), findsNothing);
+    expect(
+      find.text('Toca una categoría para definir su límite mensual'),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Presupuesto'));
     await tester.pumpAndSettle();
-    expect(find.text('Presupuesto · Octubre 2026'), findsOneWidget);
+    expect(
+      find.text('Toca una categoría para definir su límite mensual'),
+      findsOneWidget,
+    );
 
     // "Agregar" es una acción: abre el formulario sobre la pestaña actual.
     await tester.tap(find.text('Agregar'));
@@ -503,7 +535,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Mes anterior'));
     await tester.pumpAndSettle();
-    expect(find.text('Sin movimientos en este mes.'), findsOneWidget);
+    expect(find.text('Sin movimientos en Agosto 2026'), findsOneWidget);
   });
 
   testWidgets('Historial: error -> Reintentar -> datos', (tester) async {
@@ -639,7 +671,12 @@ void main() {
     expect(find.text('Cambios guardados'), findsOneWidget);
     expect(find.text('Uber a la U'), findsOneWidget); // se reconsultó
 
-    // Eliminar desde el formulario, con Deshacer.
+    // Eliminar desde el formulario, con Deshacer. (S17-01: el SnackBar
+    // flotante tapa la fila en la pantalla de prueba; lo cerramos.)
+    tester
+        .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+        .hideCurrentSnackBar();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Uber a la U'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Eliminar movimiento'));
@@ -662,7 +699,10 @@ void main() {
     await tester.tap(find.text('Presupuesto'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Presupuesto · Octubre 2026'), findsOneWidget);
+    expect(
+      find.text('Toca una categoría para definir su límite mensual'),
+      findsOneWidget,
+    );
     expect(find.text('Q600.00 de Q500.00 · excedido'), findsOneWidget);
     expect(find.text('Gastado Q420.00 · sin límite'), findsOneWidget);
 

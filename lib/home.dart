@@ -11,6 +11,10 @@ import 'features/navigation/navigation_controller.dart';
 import 'models/home_summary.dart';
 import 'theme.dart';
 import 'utils/dates.dart';
+import 'utils/money.dart';
+import 'widgets/ui/empty_state.dart';
+import 'widgets/ui/money_text.dart';
+import 'widgets/ui/summary_card.dart';
 
 // S14-02: ConsumerWidget = StatelessWidget + acceso a `ref`. Ya no hace
 // falta addListener/setState: ref.watch reconstruye cuando cambia el estado.
@@ -27,8 +31,7 @@ class HomePage extends ConsumerWidget {
       // Los estados de una consulta asíncrona, explícitos y sin if anidados.
       // Al recargar (tras guardar) se siguen viendo los datos anteriores.
       child: summary.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: kLima)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) =>
             _LoadError(onRetry: () => ref.invalidate(homeControllerProvider)),
         data: (summary) => _buildDashboard(context, summary, ref),
@@ -41,56 +44,81 @@ class HomePage extends ConsumerWidget {
     HomeSummary summary,
     WidgetRef ref,
   ) {
+    final text = Theme.of(context).textTheme;
+    final goals = summary.activeGoals;
+    void push(Widget page) => Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => page));
+
+    // S17-01: todos los espacios y estilos salen de los tokens del tema.
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(
+        Spacing.l,
+        Spacing.xl,
+        Spacing.l,
+        Spacing.xxl,
+      ),
       children: [
-        Row(
-          children: [
-            const Text('Hola, Kevin', style: TextStyle(fontSize: 15)),
-            const Spacer(),
-            // S15-02: el mes real, no 'Julio 2026' escrito a mano.
-            Text(
-              monthName(summary.month),
-              style: const TextStyle(fontSize: 12, color: kMuted),
-            ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        _buildBudgetSection(summary),
-        const SizedBox(height: 22),
-        _buildHeroCards(context, summary),
-        const SizedBox(height: 12),
-        // S14-03: dato remoto. Si falla, el resto del dashboard sigue vivo:
-        // cada provider tiene su propio estado de carga y error.
-        const ExchangeRateCard(),
-        const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Últimos movimientos',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            Text('Hola, Kevin', style: text.titleMedium),
+            // S15-02: el mes real, no 'Julio 2026' escrito a mano.
+            Text(monthName(summary.month), style: text.bodySmall),
+          ],
+        ),
+        const SizedBox(height: Spacing.xxl),
+        _MonthHero(summary: summary),
+        const SizedBox(height: Spacing.xl),
+        Row(
+          children: [
+            // S16-01: el total es real (SUM en SQL); tocarlo abre Cuentas.
+            SummaryCard(
+              icon: Icons.account_balance_wallet_outlined,
+              label: 'Cuentas',
+              value:
+                  '${summary.totalBalanceMinor < 0 ? '−' : ''}'
+                  '${formatQuetzales(summary.totalBalanceMinor)}',
+              onTap: () => push(const AccountsPage()),
+            ),
+            const SizedBox(width: Spacing.m),
+            // S16-05: Navigator.push abre Metas ENCIMA de las pestañas.
+            SummaryCard(
+              icon: Icons.savings_outlined,
+              label: 'Metas de ahorro',
+              value: goals == 0
+                  ? 'Crear una'
+                  : '$goals activa${goals != 1 ? 's' : ''}',
+              onTap: () => push(const GoalsPage()),
+            ),
+          ],
+        ),
+        const SizedBox(height: Spacing.m),
+        // S14-03: dato remoto. Si falla, el resto del dashboard sigue vivo:
+        // cada provider tiene su propio estado de carga y error.
+        const ExchangeRateCard(),
+        const SizedBox(height: Spacing.xl),
+        Row(
+          children: [
+            Expanded(
+              child: Text('Últimos movimientos', style: text.titleLarge),
             ),
             TextButton(
               // Navegar = cambiar el estado de la pestaña activa.
               onPressed: () =>
                   ref.read(navigationProvider.notifier).goTo(AppTab.history),
-              child: const Text(
-                'Ver todo',
-                style: TextStyle(fontSize: 13, color: kLima),
-              ),
+              child: const Text('Ver todo'),
             ),
           ],
         ),
-        // Estado vacío: también es un estado que hay que diseñar.
+        // Estado vacío: una invitación con su acción, no solo un texto.
         if (summary.recentMovements.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 32),
-            child: Text(
-              'Aún no hay movimientos.\nToca + para registrar el primero.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kMuted),
-            ),
+          EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'Aún no hay movimientos',
+            message: 'Registra tu primer gasto o ingreso del mes.',
+            action: 'Registrar movimiento',
+            onAction: () => openMovementForm(context, ref),
           ),
         for (final movement in summary.recentMovements)
           MovementTile(
@@ -100,98 +128,69 @@ class HomePage extends ConsumerWidget {
       ],
     );
   }
+}
 
-  Widget _buildBudgetSection(HomeSummary summary) {
-    final balanceFormatted = summary.formatQuetzales(summary.totalBalanceMinor);
-    final spentFormatted = summary.formatQuetzales(summary.monthlySpentMinor);
-    final budgetFormatted = summary.formatQuetzales(summary.monthlyBudgetMinor);
+// S17-01: lo más importante de la app, en una frase y sin mayúsculas
+// sostenidas: cuánto te queda del mes frente a tu límite.
+class _MonthHero extends StatelessWidget {
+  const _MonthHero({required this.summary});
 
+  final HomeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final limit = summary.monthlyBudgetMinor;
+    final spent = summary.monthlySpentMinor;
+
+    if (limit == 0) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Llevas gastado este mes',
+            style: text.bodyMedium?.copyWith(color: kLima),
+          ),
+          const SizedBox(height: Spacing.xs),
+          MoneyText(spent, style: text.displayLarge),
+          const SizedBox(height: Spacing.s),
+          Text('Aún no tienes un límite mensual.', style: text.bodySmall),
+        ],
+      );
+    }
+
+    final left = summary.availableBudgetMinor;
+    final exceeded = left < 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'TE QUEDAN DISPONIBLES',
-          style: TextStyle(fontSize: 11, color: kLima),
-        ),
         Text(
-          balanceFormatted,
-          style: const TextStyle(fontSize: 52, fontWeight: FontWeight.w600),
+          exceeded ? 'Te pasaste del límite por' : 'Te quedan este mes',
+          style: text.bodyMedium?.copyWith(color: exceeded ? kPeligro : kLima),
         ),
-        const SizedBox(height: 10),
-        if (summary.monthlyBudgetMinor > 0)
-          LinearProgressIndicator(
-            value: summary.budgetProgress,
-            color: kLima,
-            minHeight: 8,
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
+        const SizedBox(height: Spacing.xs),
+        MoneyText(
+          left.abs(),
+          style: text.displayLarge?.copyWith(
+            color: exceeded ? kPeligro : kTexto,
           ),
-        const SizedBox(height: 8),
-        if (summary.monthlyBudgetMinor > 0)
-          Text(
-            'Has usado $spentFormatted de $budgetFormatted',
-            style: const TextStyle(fontSize: 12, color: kMuted),
-          )
-        else
-          const Text(
-            'Sin presupuesto definido',
-            style: TextStyle(fontSize: 12, color: kMuted),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildHeroCards(BuildContext context, HomeSummary summary) {
-    final goals = summary.activeGoals;
-    final goalsText = '$goals activa${goals != 1 ? 's' : ''}';
-
-    return Row(
-      children: [
-        // S16-01: el total ya era real (SUM en SQL); tocarlo abre la
-        // gestión de cuentas (Navigator.push: una pantalla encima).
-        heroCard(
-          'Cuentas',
-          summary.formatQuetzales(summary.totalBalanceMinor),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const AccountsPage())),
         ),
-        const SizedBox(width: 16),
-        // S16-05: Navigator.push abre la pantalla de metas ENCIMA de las
-        // pestañas (con flecha para volver), no cambia de pestaña.
-        heroCard(
-          'Metas de ahorro',
-          goalsText,
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const GoalsPage())),
+        const SizedBox(height: Spacing.l),
+        LinearProgressIndicator(
+          // clamp en budgetProgress: si gastó de más, la barra no se desborda.
+          value: summary.budgetProgress,
+          color: exceeded ? kPeligro : kLima,
+          minHeight: Spacing.s,
+          borderRadius: BorderRadius.circular(Spacing.xs),
+        ),
+        const SizedBox(height: Spacing.s),
+        Text(
+          'Has usado ${formatQuetzales(spent)} de ${formatQuetzales(limit)}',
+          style: text.bodySmall,
         ),
       ],
     );
   }
-}
-
-Widget heroCard(String title, String content, {VoidCallback? onTap}) {
-  return Expanded(
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: const BorderRadius.all(Radius.circular(12)),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kSuperficie,
-          border: Border.all(color: kBorde),
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 14)),
-            Text(content, style: const TextStyle(fontSize: 20)),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 // Estado de error: mensaje humano + una acción. Nunca un stack trace.
@@ -204,17 +203,17 @@ class _LoadError extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(Spacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline, color: kPeligro, size: 40),
-            const SizedBox(height: 12),
+            const SizedBox(height: Spacing.m),
             const Text(
               'No pudimos leer tus movimientos.',
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: Spacing.m),
             OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
           ],
         ),
